@@ -38,3 +38,145 @@ p {
     color: white; 
     line-height: 1.5; 
 }
+
+.asteroid-panel {
+    position: absolute;
+    top: 15%;
+    left: 1.5%;
+    width: 240px;
+    max-height: 60vh;
+    padding: 12px 16px;
+    background: rgba(0, 0, 32, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    color: #f4f5ff;
+    font-family: Arial, sans-serif;
+    overflow-y: auto;
+    z-index: 12;
+}
+
+.asteroid-panel__header {
+    margin: 0 0 8px;
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #9ecbff;
+}
+
+.asteroid-panel__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.asteroid-panel__item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px 10px;
+    background: rgba(20, 40, 80, 0.45);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.asteroid-panel__item:hover,
+.asteroid-panel__item--active {
+    background: rgba(58, 110, 180, 0.65);
+    transform: translateY(-1px);
+}
+
+.asteroid-panel__item--hover {
+    outline: 1px solid rgba(158, 203, 255, 0.6);
+}
+
+.asteroid-panel__name {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.asteroid-panel__meta {
+    font-size: 12px;
+    color: #c0d7ff;
+}
+
+.impact-legend {
+    position: absolute;
+    bottom: 5%;
+    left: 1.5%;
+    width: 220px;
+    padding: 12px 16px;
+    background: rgba(0, 0, 32, 0.65);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    color: #f8faff;
+    font-family: Arial, sans-serif;
+    z-index: 12;
+}
+
+.impact-legend__title {
+    margin: 0 0 8px;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #ffdd9e;
+}
+
+.impact-legend__scale {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.impact-legend__scale li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: #d8e5ff;
+}
+
+.impact-legend__swatch {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    box-shadow: 0 0 6px rgba(255, 255, 255, 0.35);
+}
+
+.impact-legend__swatch--low {
+    background: #58d68d;
+}
+
+.impact-legend__swatch--medium {
+    background: #f4d03f;
+}
+
+.impact-legend__swatch--high {
+    background: #e74c3c;
+}
+
+@media (max-width: 768px) {
+    .asteroid-panel {
+        top: auto;
+        bottom: 15%;
+        left: 50%;
+        transform: translateX(-50%);
+        width: calc(100% - 48px);
+        max-height: 40vh;
+    }
+
+    .impact-legend {
+        left: 50%;
+        transform: translateX(-50%);
+        bottom: 5%;
+    }
+}

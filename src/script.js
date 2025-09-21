@@ -56,6 +56,11 @@ controls.enableDamping = true;
 controls.dampingFactor = 0.75;
 controls.screenSpacePanning = false;
 
+const earthDefaultCameraOffset = new THREE.Vector3(-90, 45, 140);
+const earthDefaultCameraPosition = new THREE.Vector3();
+const earthDefaultTargetPosition = new THREE.Vector3();
+let zoomOutTargetPosition = new THREE.Vector3();
+
 console.log("Set up texture loader");
 const cubeTextureLoader = new THREE.CubeTextureLoader();
 const loadTexture = new THREE.TextureLoader();
@@ -119,9 +124,16 @@ const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 
 function onMouseMove(event) {
+    const isCanvasInteraction = event.target === renderer.domElement;
+    if (!isCanvasInteraction) {
+        setHoveredAsteroidEntry(null);
+        return;
+    }
+
     event.preventDefault();
     mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
     mouse.y = - (event.clientY / window.innerHeight) * 2 + 1;
+    updateHoveredAsteroid();
 }
 
 // ******  SELECT PLANET  ******
@@ -131,31 +143,21 @@ let targetCameraPosition = new THREE.Vector3();
 let offset;
 
 function onDocumentMouseDown(event) {
+  if (event.target !== renderer.domElement) {
+    return;
+  }
+
   event.preventDefault();
 
   mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
   mouse.y = - (event.clientY / window.innerHeight) * 2 + 1;
 
-  raycaster.setFromCamera(mouse, camera);
-  var intersects = raycaster.intersectObjects(raycastTargets);
+  updateHoveredAsteroid();
 
-  if (intersects.length > 0) {
-    const clickedObject = intersects[0].object;
-    selectedPlanet = identifyPlanet(clickedObject);
-    if (selectedPlanet) {
-      closeInfoNoZoomOut();
-      
-      settings.accelerationOrbit = 0; // Stop orbital movement
-
-      // Update camera to look at the selected planet
-      const planetPosition = new THREE.Vector3();
-      selectedPlanet.planet.getWorldPosition(planetPosition);
-      controls.target.copy(planetPosition);
-      camera.lookAt(planetPosition); // Orient the camera towards the planet
-
-      targetCameraPosition.copy(planetPosition).add(camera.position.clone().sub(planetPosition).normalize().multiplyScalar(offset));
-      isMovingTowardsPlanet = true;
-    }
+  if (hoveredAsteroidEntry) {
+    handleAsteroidSelection(hoveredAsteroidEntry.data.id);
+  } else {
+    clearAsteroidSelection();
   }
 }
 
@@ -205,14 +207,30 @@ function showPlanetInfo(planet) {
   info.style.display = 'block';
 }
 let isZoomingOut = false;
-let zoomOutTargetPosition = new THREE.Vector3(-175, 115, 5);
 // close 'x' button function
+function updateEarthDefaultView(applyToCamera = false) {
+  if (typeof earth !== 'undefined' && earth.planet) {
+    earth.planet.getWorldPosition(earthDefaultTargetPosition);
+  } else {
+    earthDefaultTargetPosition.set(0, 0, 0);
+  }
+
+  earthDefaultCameraPosition.copy(earthDefaultTargetPosition).add(earthDefaultCameraOffset);
+  zoomOutTargetPosition.copy(earthDefaultCameraPosition);
+
+  if (applyToCamera) {
+    controls.target.copy(earthDefaultTargetPosition);
+    camera.position.copy(earthDefaultCameraPosition);
+  }
+}
+
 function closeInfo() {
   var info = document.getElementById('planetInfo');
   info.style.display = 'none';
   settings.accelerationOrbit = 1;
+  updateEarthDefaultView();
+  controls.target.copy(earthDefaultTargetPosition);
   isZoomingOut = true;
-  controls.target.set(0, 0, 0);
 }
 window.closeInfo = closeInfo;
 // close info when clicking another planet
@@ -366,33 +384,430 @@ function loadObject(path, position, scale, callback) {
 }
 
 // ******  ASTEROIDS  ******
-const asteroids = [];
-function loadAsteroids(path, numberOfAsteroids, minOrbitRadius, maxOrbitRadius) {
-  const loader = new GLTFLoader();
-  loader.load(path, function (gltf) {
-      gltf.scene.traverse(function (child) {
-          if (child.isMesh) {
-              for (let i = 0; i < numberOfAsteroids / 12; i++) { // Divide by 12 because there are 12 asteroids in the pack
-                  const asteroid = child.clone();
-                  const orbitRadius = THREE.MathUtils.randFloat(minOrbitRadius, maxOrbitRadius);
-                  const angle = Math.random() * Math.PI * 2;
-                  const x = orbitRadius * Math.cos(angle);
-                  const y = 0;
-                  const z = orbitRadius * Math.sin(angle);
-                  child.receiveShadow = true;
-                  asteroid.position.set(x, y, z);
-                  asteroid.scale.setScalar(THREE.MathUtils.randFloat(0.8, 1.2));
-                  scene.add(asteroid);
-                  asteroids.push(asteroid);
-              }
-          }
-      });
-  }, undefined, function (error) {
-      console.error('An error happened', error);
+const asteroidListElement = document.getElementById('asteroidList');
+const asteroidPanelElement = document.getElementById('asteroidListPanel');
+const impactLegendElement = document.getElementById('impactLegendOverlay');
+
+if (asteroidPanelElement) {
+  asteroidPanelElement.dataset.component = 'asteroid-panel';
+}
+
+if (impactLegendElement) {
+  impactLegendElement.dataset.component = 'impact-legend';
+}
+
+const asteroidYieldColors = {
+  low: 0x58d68d,
+  medium: 0xf4d03f,
+  high: 0xe74c3c
+};
+
+const asteroidYieldRadiusScale = {
+  low: 1.3,
+  medium: 1.8,
+  high: 2.6
+};
+
+const asteroidDefaultCameraOffset = new THREE.Vector3(25, 15, 25);
+const asteroidFocusPoint = new THREE.Vector3();
+const asteroidCameraTarget = new THREE.Vector3();
+const asteroidWorkVector = new THREE.Vector3();
+const asteroidMidPoint = new THREE.Vector3();
+const earthWorldPosition = new THREE.Vector3();
+
+const asteroidCatalog = [
+  {
+    id: 'apophis',
+    name: '99942 Apophis',
+    designation: 'Apophis',
+    tntYieldMt: 800,
+    orbit: { semiMajorAxis: 150, eccentricity: 0.12, inclination: 6, angularVelocity: 0.00012 },
+    spinRate: 0.0015,
+    visualScale: 0.018,
+    description: 'Potentially hazardous Aten asteroid with a close 2029 approach.'
+  },
+  {
+    id: 'bennu',
+    name: '101955 Bennu',
+    designation: 'Bennu',
+    tntYieldMt: 4.5,
+    orbit: { semiMajorAxis: 120, eccentricity: 0.21, inclination: 6, angularVelocity: 0.00009 },
+    spinRate: 0.0018,
+    visualScale: 0.016,
+    description: 'Carbonaceous near-Earth asteroid sampled by OSIRIS-REx.'
+  },
+  {
+    id: 'didymos',
+    name: '65803 Didymos',
+    designation: 'Didymos',
+    tntYieldMt: 15.0,
+    orbit: { semiMajorAxis: 180, eccentricity: 0.08, inclination: 3, angularVelocity: 0.00007 },
+    spinRate: 0.0012,
+    visualScale: 0.02,
+    description: 'Binary system primary targeted by the DART mission.'
+  }
+];
+
+const asteroidEntries = asteroidCatalog.map((data, index) => ({
+  data,
+  mesh: null,
+  listItem: null,
+  orbitAngle: data.initialPhase ?? index * 1.3,
+  orbitAngularVelocity: data.orbit.angularVelocity
+}));
+
+let selectedAsteroidEntry = null;
+let hoveredAsteroidEntry = null;
+let asteroidTrajectoryLine = null;
+let asteroidImpactOverlay = null;
+let isMovingTowardsAsteroid = false;
+
+buildAsteroidList();
+initializeAsteroids();
+
+function buildAsteroidList() {
+  if (!asteroidListElement) {
+    return;
+  }
+
+  asteroidListElement.innerHTML = '';
+
+  asteroidEntries.forEach(entry => {
+    const { data } = entry;
+    const item = document.createElement('li');
+    item.className = 'asteroid-panel__item';
+    item.dataset.asteroidId = data.id;
+    item.innerHTML = `<span class='asteroid-panel__name'>${data.name}</span>` +
+      `<span class='asteroid-panel__meta'>Yield: ${data.tntYieldMt} Mt | a=${data.orbit.semiMajorAxis} | i=${data.orbit.inclination} deg</span>`;
+    item.addEventListener('click', () => handleAsteroidSelection(data.id));
+    asteroidListElement.appendChild(item);
+    entry.listItem = item;
   });
 }
 
+function initializeAsteroids() {
+  const loader = new GLTFLoader();
 
+  loader.load('/asteroids/asteroidPack.glb', gltf => {
+    const templates = [];
+
+    gltf.scene.traverse(child => {
+      if (child.isMesh) {
+        templates.push(child);
+      }
+    });
+
+    if (templates.length === 0) {
+      createFallbackAsteroids();
+      return;
+    }
+
+    asteroidEntries.forEach((entry, index) => {
+      const source = templates[index % templates.length].clone(true);
+      if (source.geometry) {
+        source.geometry = source.geometry.clone();
+      }
+      if (Array.isArray(source.material)) {
+        source.material = source.material.map(material => material.clone());
+      } else if (source.material) {
+        source.material = source.material.clone();
+      }
+      source.scale.setScalar(entry.data.visualScale);
+      source.castShadow = true;
+      source.receiveShadow = true;
+      source.name = entry.data.name;
+
+      source.traverse(node => {
+        if (!node.userData) {
+          node.userData = {};
+        }
+        node.userData.asteroidId = entry.data.id;
+        node.userData.metadata = entry.data;
+      });
+
+      scene.add(source);
+      entry.mesh = source;
+      updateAsteroidTransform(entry, false);
+    });
+  }, undefined, error => {
+    console.warn('Failed to load asteroid GLB. Falling back to procedural meshes.', error);
+    createFallbackAsteroids();
+  });
+}
+
+function createFallbackAsteroids() {
+  const baseGeometry = new THREE.IcosahedronGeometry(2, 1);
+
+  asteroidEntries.forEach(entry => {
+    const material = new THREE.MeshStandardMaterial({ color: 0xadb5bd, flatShading: true });
+    const mesh = new THREE.Mesh(baseGeometry.clone(), material);
+    mesh.scale.setScalar(entry.data.visualScale * 8);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    mesh.name = entry.data.name;
+    mesh.userData = mesh.userData || {};
+    mesh.userData.asteroidId = entry.data.id;
+    mesh.userData.metadata = entry.data;
+
+    scene.add(mesh);
+    entry.mesh = mesh;
+    updateAsteroidTransform(entry, false);
+  });
+}
+
+function getAsteroidMeshes() {
+  return asteroidEntries
+    .filter(entry => entry.mesh)
+    .map(entry => entry.mesh);
+}
+
+function findAsteroidEntryFromObject(object) {
+  let current = object;
+  while (current && !current.userData?.asteroidId && current.parent) {
+    current = current.parent;
+  }
+  const asteroidId = current?.userData?.asteroidId;
+  if (!asteroidId) {
+    return null;
+  }
+  return asteroidEntries.find(entry => entry.data.id === asteroidId) || null;
+}
+
+function setHoveredAsteroidEntry(entry) {
+  if (hoveredAsteroidEntry && hoveredAsteroidEntry.listItem) {
+    hoveredAsteroidEntry.listItem.classList.remove('asteroid-panel__item--hover');
+  }
+
+  hoveredAsteroidEntry = entry;
+
+  if (hoveredAsteroidEntry && hoveredAsteroidEntry.listItem) {
+    hoveredAsteroidEntry.listItem.classList.add('asteroid-panel__item--hover');
+  }
+
+  if (renderer && renderer.domElement) {
+    renderer.domElement.style.cursor = hoveredAsteroidEntry ? 'pointer' : 'auto';
+  }
+}
+
+function updateHoveredAsteroid() {
+  const meshes = getAsteroidMeshes();
+  if (meshes.length === 0) {
+    setHoveredAsteroidEntry(null);
+    return;
+  }
+
+  raycaster.setFromCamera(mouse, camera);
+  const intersects = raycaster.intersectObjects(meshes, true);
+  if (intersects.length === 0) {
+    setHoveredAsteroidEntry(null);
+    return;
+  }
+
+  const entry = findAsteroidEntryFromObject(intersects[0].object);
+  setHoveredAsteroidEntry(entry || null);
+}
+
+function getYieldBand(tntMt) {
+  if (tntMt <= 1) {
+    return 'low';
+  }
+
+  if (tntMt <= 10) {
+    return 'medium';
+  }
+
+  return 'high';
+}
+
+function updateAsteroidTransform(entry, advance = true) {
+  if (!entry.mesh) {
+    return;
+  }
+
+  if (advance) {
+    entry.orbitAngle += entry.orbitAngularVelocity * settings.accelerationOrbit;
+  }
+
+  const { semiMajorAxis: a, eccentricity, inclination } = entry.data.orbit;
+  const b = a * Math.sqrt(1 - Math.pow(eccentricity, 2));
+  const angle = entry.orbitAngle;
+
+  const x = a * Math.cos(angle);
+  const z = b * Math.sin(angle);
+  const inclineRad = THREE.MathUtils.degToRad(inclination);
+  const y = Math.sin(angle) * Math.sin(inclineRad) * a * 0.2;
+
+  entry.mesh.position.set(x, y, z);
+
+  const spinRate = entry.data.spinRate ?? 0.001;
+  entry.mesh.rotation.y += spinRate * settings.acceleration;
+}
+
+function updateAsteroids() {
+  asteroidEntries.forEach(entry => updateAsteroidTransform(entry));
+
+  if (selectedAsteroidEntry && selectedAsteroidEntry.mesh) {
+    updateTrajectoryLine(selectedAsteroidEntry);
+  }
+}
+
+function handleAsteroidSelection(id) {
+  const entry = asteroidEntries.find(item => item.data.id === id);
+  if (!entry || !entry.mesh) {
+    return;
+  }
+
+  if (selectedAsteroidEntry && selectedAsteroidEntry.data.id === id) {
+    clearAsteroidSelection();
+    return;
+  }
+
+  clearAsteroidSelection();
+
+  selectedAsteroidEntry = entry;
+  if (entry.listItem) {
+    entry.listItem.classList.add('asteroid-panel__item--active');
+  }
+
+  focusCameraOnAsteroid(entry);
+  createTrajectoryLine(entry);
+  createImpactOverlay(entry);
+}
+
+function clearAsteroidSelection() {
+  if (selectedAsteroidEntry && selectedAsteroidEntry.listItem) {
+    selectedAsteroidEntry.listItem.classList.remove('asteroid-panel__item--active');
+  }
+
+  removeTrajectoryLine();
+  removeImpactOverlay();
+  selectedAsteroidEntry = null;
+  isMovingTowardsAsteroid = false;
+  updateEarthDefaultView();
+  controls.target.copy(earthDefaultTargetPosition);
+  isZoomingOut = true;
+}
+
+function focusCameraOnAsteroid(entry) {
+  closeInfoNoZoomOut();
+  selectedPlanet = null;
+  isMovingTowardsPlanet = false;
+  isZoomingOut = false;
+
+  if (!entry.mesh) {
+    return;
+  }
+
+  entry.mesh.getWorldPosition(asteroidWorkVector);
+  asteroidCameraTarget.copy(asteroidWorkVector).add(asteroidDefaultCameraOffset);
+  controls.target.copy(asteroidWorkVector);
+  isMovingTowardsAsteroid = true;
+}
+
+function createTrajectoryLine(entry) {
+  removeTrajectoryLine();
+
+  const points = getTrajectoryPoints(entry);
+  const geometry = new THREE.BufferGeometry().setFromPoints(points);
+  const material = new THREE.LineBasicMaterial({
+    color: 0x9ecbff,
+    transparent: true,
+    opacity: 0.8
+  });
+
+  asteroidTrajectoryLine = new THREE.Line(geometry, material);
+  asteroidTrajectoryLine.frustumCulled = false;
+  scene.add(asteroidTrajectoryLine);
+}
+
+function updateTrajectoryLine(entry) {
+  if (!asteroidTrajectoryLine) {
+    return;
+  }
+
+  const points = getTrajectoryPoints(entry);
+  asteroidTrajectoryLine.geometry.setFromPoints(points);
+}
+
+function removeTrajectoryLine() {
+  if (!asteroidTrajectoryLine) {
+    return;
+  }
+
+  scene.remove(asteroidTrajectoryLine);
+  asteroidTrajectoryLine.geometry.dispose();
+  asteroidTrajectoryLine.material.dispose();
+  asteroidTrajectoryLine = null;
+}
+
+function createImpactOverlay(entry) {
+  removeImpactOverlay();
+
+  const yieldBand = getYieldBand(entry.data.tntYieldMt);
+  const color = asteroidYieldColors[yieldBand];
+  const scaleFactor = asteroidYieldRadiusScale[yieldBand];
+  const earthRadius = (typeof earth !== 'undefined' && earth.planet && earth.planet.geometry && earth.planet.geometry.parameters)
+    ? earth.planet.geometry.parameters.radius
+    : 6.4;
+
+  const geometry = new THREE.CircleGeometry(earthRadius * scaleFactor, 48);
+  const material = new THREE.MeshBasicMaterial({
+    color,
+    transparent: true,
+    opacity: 0.25,
+    side: THREE.DoubleSide
+  });
+
+  asteroidImpactOverlay = new THREE.Mesh(geometry, material);
+  asteroidImpactOverlay.rotation.x = -Math.PI / 2;
+  asteroidImpactOverlay.position.set(0, 0.1, 0);
+
+  if (typeof earth !== 'undefined' && earth.planet) {
+    earth.planet.add(asteroidImpactOverlay);
+  } else {
+    scene.add(asteroidImpactOverlay);
+  }
+}
+
+function removeImpactOverlay() {
+  if (!asteroidImpactOverlay) {
+    return;
+  }
+
+  if (asteroidImpactOverlay.parent) {
+    asteroidImpactOverlay.parent.remove(asteroidImpactOverlay);
+  }
+
+  asteroidImpactOverlay.geometry.dispose();
+  asteroidImpactOverlay.material.dispose();
+  asteroidImpactOverlay = null;
+}
+
+function getTrajectoryPoints(entry) {
+  if (!entry.mesh) {
+    return [];
+  }
+
+  entry.mesh.getWorldPosition(asteroidWorkVector);
+  asteroidFocusPoint.copy(asteroidWorkVector);
+
+  if (typeof earth !== 'undefined' && earth.planet) {
+    earth.planet.getWorldPosition(earthWorldPosition);
+  } else {
+    earthWorldPosition.set(0, 0, 0);
+  }
+
+  asteroidMidPoint.copy(asteroidWorkVector).lerp(earthWorldPosition, 0.5);
+  asteroidMidPoint.y += 20;
+
+  const curve = new THREE.CatmullRomCurve3([
+    asteroidWorkVector.clone(),
+    asteroidMidPoint.clone(),
+    earthWorldPosition.clone()
+  ]);
+
+  return curve.getPoints(32);
+}
 // Earth day/night effect shader material
 const earthMaterial = new THREE.ShaderMaterial({
   uniforms: {
@@ -524,6 +939,8 @@ const uranus = new createPlanet('Uranus', 25/4, 320, 82, uranusTexture, null, {
 const neptune = new createPlanet('Neptune', 24/4, 340, 28, neptuneTexture);
 const pluto = new createPlanet('Pluto', 1, 350, 57, plutoTexture)
 
+updateEarthDefaultView(true);
+
   // ******  PLANETS DATA  ******
   const planetData = {
     'Mercury': {
@@ -611,11 +1028,6 @@ const pluto = new createPlanet('Pluto', 1, 350, 57, plutoTexture)
 
 
 // Array of planets and atmospheres for raycasting
-const raycastTargets = [
-  mercury.planet, venus.planet, venus.Atmosphere, earth.planet, earth.Atmosphere, 
-  mars.planet, jupiter.planet, saturn.planet, uranus.planet, neptune.planet, pluto.planet
-];
-
 // ******  SHADOWS  ******
 renderer.shadowMap.enabled = true;
 pointLight.castShadow = true;
@@ -726,34 +1138,29 @@ if (jupiter.moons) {
   });
 }
 
-// Rotate asteroids
-asteroids.forEach(asteroid => {
-  asteroid.rotation.y += 0.0001;
-  asteroid.position.x = asteroid.position.x * Math.cos(0.0001 * settings.accelerationOrbit) + asteroid.position.z * Math.sin(0.0001 * settings.accelerationOrbit);
-  asteroid.position.z = asteroid.position.z * Math.cos(0.0001 * settings.accelerationOrbit) - asteroid.position.x * Math.sin(0.0001 * settings.accelerationOrbit);
-});
+updateEarthDefaultView();
 
-// ****** OUTLINES ON PLANETS ******
-raycaster.setFromCamera(mouse, camera);
+// Update asteroids and overlays
+updateAsteroids();
 
-// Check for intersections
-var intersects = raycaster.intersectObjects(raycastTargets);
+if (selectedAsteroidEntry && selectedAsteroidEntry.mesh) {
+  selectedAsteroidEntry.mesh.getWorldPosition(asteroidFocusPoint);
+  controls.target.lerp(asteroidFocusPoint, 0.15);
 
-// Reset all outlines
-outlinePass.selectedObjects = [];
-
-if (intersects.length > 0) {
-  const intersectedObject = intersects[0].object;
-
-  // If the intersected object is an atmosphere, find the corresponding planet
-  if (intersectedObject === earth.Atmosphere) {
-    outlinePass.selectedObjects = [earth.planet];
-  } else if (intersectedObject === venus.Atmosphere) {
-    outlinePass.selectedObjects = [venus.planet];
-  } else {
-    // For other planets, outline the intersected object itself
-    outlinePass.selectedObjects = [intersectedObject];
+  if (!isMovingTowardsAsteroid) {
+    asteroidCameraTarget.copy(asteroidFocusPoint).add(asteroidDefaultCameraOffset);
+    camera.position.lerp(asteroidCameraTarget, 0.02);
   }
+} else if (!selectedPlanet && !isMovingTowardsPlanet && !isMovingTowardsAsteroid && !isZoomingOut) {
+  controls.target.lerp(earthDefaultTargetPosition, 0.1);
+  camera.position.lerp(earthDefaultCameraPosition, 0.02);
+}
+
+// ****** ASTEROID OUTLINE ******
+if (selectedAsteroidEntry && selectedAsteroidEntry.mesh) {
+  outlinePass.selectedObjects = [selectedAsteroidEntry.mesh];
+} else {
+  outlinePass.selectedObjects = [];
 }
 // ******  ZOOM IN/OUT  ******
 if (isMovingTowardsPlanet) {
@@ -766,7 +1173,14 @@ if (isMovingTowardsPlanet) {
       showPlanetInfo(selectedPlanet.name);
 
   }
+} else if (isMovingTowardsAsteroid) {
+  camera.position.lerp(asteroidCameraTarget, 0.03);
+
+  if (camera.position.distanceTo(asteroidCameraTarget) < 1) {
+      isMovingTowardsAsteroid = false;
+  }
 } else if (isZoomingOut) {
+  controls.target.lerp(earthDefaultTargetPosition, 0.1);
   camera.position.lerp(zoomOutTargetPosition, 0.05);
 
   if (camera.position.distanceTo(zoomOutTargetPosition) < 1) {
@@ -778,8 +1192,6 @@ if (isMovingTowardsPlanet) {
   requestAnimationFrame(animate);
   composer.render();
 }
-loadAsteroids('/asteroids/asteroidPack.glb', 1000, 130, 160);
-loadAsteroids('/asteroids/asteroidPack.glb', 3000, 352, 370);
 animate();
 
 window.addEventListener('mousemove', onMouseMove, false);

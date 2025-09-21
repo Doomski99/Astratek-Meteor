@@ -16,7 +16,18 @@
 </head>
 <body>
     <div id="gui-container"></div>
-    <div><script type="module" src="./script.js"></script></div>
+    <aside id="asteroidListPanel" class="asteroid-panel">
+        <header class="asteroid-panel__header">Tracked Asteroids</header>
+        <ul id="asteroidList" class="asteroid-panel__list"></ul>
+    </aside>
+    <div id="impactLegendOverlay" class="impact-legend">
+        <h3 class="impact-legend__title">Impact Yield Bands</h3>
+        <ul class="impact-legend__scale">
+            <li data-yield="low"><span class="impact-legend__swatch impact-legend__swatch--low"></span><span>&lt;= 1 Mt</span></li>
+            <li data-yield="medium"><span class="impact-legend__swatch impact-legend__swatch--medium"></span><span>1 - 10 Mt</span></li>
+            <li data-yield="high"><span class="impact-legend__swatch impact-legend__swatch--high"></span><span>&gt; 10 Mt</span></li>
+        </ul>
+    </div>
     <div id="planetInfo" class="planet-info">
         <div class="planet-info-content">
             <span class="close-btn" onclick="closeInfo()">&times;</span>
@@ -24,5 +35,6 @@
             <p id="planetDetails"></p>
         </div>
     </div>
+    <script type="module" src="./script.js"></script>
 </body>
 </html>
