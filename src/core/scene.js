@@ -24,6 +24,14 @@ const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.75;
 controls.screenSpacePanning = false;
+controls.enablePan = false;
+controls.enableRotate = true;
+controls.enableZoom = true;
+controls.minDistance = 10;
+controls.maxDistance = 500;
+controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
+controls.mouseButtons.RIGHT = THREE.MOUSE.ROTATE;
+controls.mouseButtons.MIDDLE = THREE.MOUSE.DOLLY;
 
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));

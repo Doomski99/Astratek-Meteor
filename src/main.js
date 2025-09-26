@@ -77,6 +77,65 @@ gui.add(settings, 'sunIntensity', 1, 10).onChange(value => {
 
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
+const targetBoundingBox = new THREE.Box3();
+const targetBoundingSphere = new THREE.Sphere();
+
+const viewTargetListElement = document.getElementById('viewTargetList');
+
+function setActiveViewTarget(id) {
+  if (!viewTargetListElement) {
+    return;
+  }
+
+  const items = viewTargetListElement.querySelectorAll('[data-target-id]');
+  items.forEach(item => {
+    item.classList.toggle('view-panel__item--active', item.dataset.targetId === id);
+  });
+}
+
+function setCameraZoomLimitsForObject(object, fallbackRadius = 8) {
+  let radius = fallbackRadius;
+
+  if (object) {
+    targetBoundingBox.setFromObject(object);
+    if (!targetBoundingBox.isEmpty()) {
+      targetBoundingBox.getBoundingSphere(targetBoundingSphere);
+      radius = Math.max(targetBoundingSphere.radius, fallbackRadius);
+    }
+  }
+
+  controls.minDistance = Math.max(radius * 1.6, 2.5);
+  controls.maxDistance = Math.max(radius * 15, 350);
+}
+
+if (viewTargetListElement) {
+  viewTargetListElement.addEventListener('click', event => {
+    const item = event.target.closest('[data-target-id]');
+    if (!item) {
+      return;
+    }
+
+    const { targetId } = item.dataset;
+    if (targetId === 'earth') {
+      clearAsteroidSelection();
+    }
+  });
+}
+
+setActiveViewTarget('earth');
+
+if (renderer?.domElement) {
+  renderer.domElement.style.cursor = 'grab';
+  renderer.domElement.addEventListener('pointerdown', () => {
+    renderer.domElement.style.cursor = 'grabbing';
+  });
+  renderer.domElement.addEventListener('pointerup', () => {
+    renderer.domElement.style.cursor = 'grab';
+  });
+  renderer.domElement.addEventListener('pointerleave', () => {
+    renderer.domElement.style.cursor = 'grab';
+  });
+}
 
 const earthDefaultCameraOffset = new THREE.Vector3(-90, 45, 140);
 const earthDefaultCameraPosition = new THREE.Vector3();
@@ -104,6 +163,9 @@ function updateEarthDefaultView(applyToCamera = false) {
     controls.target.copy(earthDefaultTargetPosition);
     camera.position.copy(earthDefaultCameraPosition);
   }
+
+  const earthTarget = typeof earth !== 'undefined' ? earth.planet : null;
+  setCameraZoomLimitsForObject(earthTarget, 6.4);
 }
 
 function closeInfo() {
@@ -347,6 +409,7 @@ const neptune = createPlanet('Neptune', 24 / 4, 340, 28, neptuneTexture);
 const pluto = createPlanet('Pluto', 1, 350, 57, plutoTexture);
 
 updateEarthDefaultView(true);
+setCameraZoomLimitsForObject(earth?.planet ?? null, 6.4);
 
 renderer.shadowMap.enabled = true;
 pointLight.castShadow = true;
@@ -428,6 +491,9 @@ function focusCameraOnPlanet(planet) {
     return;
   }
 
+  const planetRadius = planet.planet.geometry?.parameters?.radius ?? 8;
+  setCameraZoomLimitsForObject(planet.planet, planetRadius);
+
   planet.planet.getWorldPosition(planetFocusPosition);
   controls.target.copy(planetFocusPosition);
 
@@ -439,9 +505,6 @@ function focusCameraOnPlanet(planet) {
 
 function setHoveredAsteroidEntry(entry) {
   hoveredAsteroidEntry = entry;
-  if (renderer && renderer.domElement) {
-    renderer.domElement.style.cursor = hoveredAsteroidEntry ? 'pointer' : 'auto';
-  }
   const hoveredId = hoveredAsteroidEntry ? hoveredAsteroidEntry.data.id : null;
   asteroidPanel.setHovered(hoveredId);
 }
@@ -513,6 +576,9 @@ function clearAsteroidSelection() {
   removeImpactOverlay();
   selectedAsteroidEntry = null;
   isMovingTowardsAsteroid = false;
+  setActiveViewTarget('earth');
+  const earthTarget = typeof earth !== 'undefined' ? earth.planet : null;
+  setCameraZoomLimitsForObject(earthTarget, 6.4);
   updateEarthDefaultView();
   controls.target.copy(earthDefaultTargetPosition);
   isZoomingOut = true;
@@ -527,6 +593,8 @@ function focusCameraOnAsteroid(entry) {
   if (!entry.mesh) {
     return;
   }
+
+  setCameraZoomLimitsForObject(entry.mesh, 2.5);
 
   entry.mesh.getWorldPosition(asteroidWorkVector);
   asteroidCameraTarget.copy(asteroidWorkVector).add(asteroidDefaultCameraOffset);
@@ -548,6 +616,7 @@ function handleAsteroidSelection(id) {
   clearAsteroidSelection();
 
   selectedAsteroidEntry = entry;
+  setActiveViewTarget(null);
   asteroidPanel.setSelected(entry.data.id);
   focusCameraOnAsteroid(entry);
   createTrajectoryForEntry(entry);
@@ -583,24 +652,6 @@ function onMouseMove(event) {
   mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
   mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
   updateHoveredAsteroid();
-}
-
-function onDocumentMouseDown(event) {
-  if (event.target !== renderer.domElement) {
-    return;
-  }
-
-  event.preventDefault();
-  mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-  mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-
-  updateHoveredAsteroid();
-
-  if (hoveredAsteroidEntry) {
-    handleAsteroidSelection(hoveredAsteroidEntry.data.id);
-  } else {
-    clearAsteroidSelection();
-  }
 }
 
 function updateAsteroids() {
@@ -720,34 +771,7 @@ function animate() {
   composer.render();
 }
 
-function onDocumentClick(event) {
-  if (event.target !== renderer.domElement) {
-    return;
-  }
-
-  mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-  mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-
-  raycaster.setFromCamera(mouse, camera);
-  const intersects = raycaster.intersectObjects(scene.children, true);
-
-  if (intersects.length > 0) {
-    const planet = handlePlanetSelection(intersects[0].object);
-    if (planet) {
-      selectedPlanet = planet;
-      selectedAsteroidEntry = null;
-      isMovingTowardsAsteroid = false;
-      asteroidPanel.clearSelection();
-      removeTrajectoryLine();
-      removeImpactOverlay();
-      focusCameraOnPlanet(planet);
-    }
-  }
-}
-
 window.addEventListener('mousemove', onMouseMove, false);
-window.addEventListener('mousedown', onDocumentMouseDown, false);
-window.addEventListener('click', onDocumentClick, false);
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
