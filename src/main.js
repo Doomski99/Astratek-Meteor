@@ -80,6 +80,16 @@ const mouse = new THREE.Vector2();
 const targetBoundingBox = new THREE.Box3();
 const targetBoundingSphere = new THREE.Sphere();
 
+let isManualOrbiting = false;
+
+controls.addEventListener('start', () => {
+  isManualOrbiting = true;
+});
+
+controls.addEventListener('end', () => {
+  // keep the manual flag until the UI requests a recenter, so orbit input persists
+});
+
 const viewTargetListElement = document.getElementById('viewTargetList');
 
 function setActiveViewTarget(id) {
@@ -176,6 +186,7 @@ function closeInfo() {
   settings.accelerationOrbit = 1;
   updateEarthDefaultView();
   controls.target.copy(earthDefaultTargetPosition);
+  isManualOrbiting = false;
   isZoomingOut = true;
 }
 
@@ -185,6 +196,7 @@ function closeInfoNoZoomOut() {
     info.style.display = 'none';
   }
   settings.accelerationOrbit = 1;
+  isManualOrbiting = false;
 }
 
 function showPlanetInfo(planet) {
@@ -500,6 +512,7 @@ function focusCameraOnPlanet(planet) {
   targetCameraPosition.copy(planetFocusPosition);
   targetCameraPosition.z += offset;
   targetCameraPosition.y += offset / 2;
+  isManualOrbiting = false;
   isMovingTowardsPlanet = true;
 }
 
@@ -581,6 +594,7 @@ function clearAsteroidSelection() {
   setCameraZoomLimitsForObject(earthTarget, 6.4);
   updateEarthDefaultView();
   controls.target.copy(earthDefaultTargetPosition);
+  isManualOrbiting = false;
   isZoomingOut = true;
 }
 
@@ -599,6 +613,7 @@ function focusCameraOnAsteroid(entry) {
   entry.mesh.getWorldPosition(asteroidWorkVector);
   asteroidCameraTarget.copy(asteroidWorkVector).add(asteroidDefaultCameraOffset);
   controls.target.copy(asteroidWorkVector);
+  isManualOrbiting = false;
   isMovingTowardsAsteroid = true;
 }
 
@@ -730,13 +745,15 @@ function animate() {
     selectedAsteroidEntry.mesh.getWorldPosition(asteroidFocusPoint);
     controls.target.lerp(asteroidFocusPoint, 0.15);
 
-    if (!isMovingTowardsAsteroid) {
+    if (!isManualOrbiting || isMovingTowardsAsteroid) {
       asteroidCameraTarget.copy(asteroidFocusPoint).add(asteroidDefaultCameraOffset);
       camera.position.lerp(asteroidCameraTarget, 0.02);
     }
   } else if (!selectedPlanet && !isMovingTowardsPlanet && !isMovingTowardsAsteroid && !isZoomingOut) {
     controls.target.lerp(earthDefaultTargetPosition, 0.1);
-    camera.position.lerp(earthDefaultCameraPosition, 0.02);
+    if (!isManualOrbiting) {
+      camera.position.lerp(earthDefaultCameraPosition, 0.02);
+    }
   }
 
   if (selectedAsteroidEntry && selectedAsteroidEntry.mesh) {
