@@ -102,6 +102,7 @@ controls.addEventListener('start', () => {
   isMovingTowardsPlanet = false;
   isZoomingOut = false;
 });
+controls.addEventListener('end', resetManualOrbiting);
 function updateEarthDefaultView(applyToCamera = false) {
   if (typeof earth !== 'undefined' && earth.planet) {
     earth.planet.getWorldPosition(earthDefaultTargetPosition);
@@ -528,7 +529,6 @@ function clearAsteroidSelection() {
   removeImpactOverlay();
   selectedAsteroidEntry = null;
   isMovingTowardsAsteroid = false;
-  resetManualOrbiting();
   updateEarthDefaultView();
   controls.target.copy(earthDefaultTargetPosition);
   isZoomingOut = true;
