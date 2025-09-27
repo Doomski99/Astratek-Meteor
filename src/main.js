@@ -90,6 +90,22 @@ let targetCameraPosition = new THREE.Vector3();
 let offset;
 
 let isZoomingOut = false;
+let isManualOrbiting = false;
+let hasManualCameraOverride = false;
+
+function activateManualOverride() {
+  isManualOrbiting = true;
+  hasManualCameraOverride = true;
+}
+
+function resetManualOrbiting() {
+  isManualOrbiting = false;
+}
+
+function clearManualOverride() {
+  hasManualCameraOverride = false;
+  resetManualOrbiting();
+}
 function updateEarthDefaultView(applyToCamera = false) {
   if (typeof earth !== 'undefined' && earth.planet) {
     earth.planet.getWorldPosition(earthDefaultTargetPosition);
@@ -112,6 +128,7 @@ function closeInfo() {
     info.style.display = 'none';
   }
   settings.accelerationOrbit = 1;
+  clearManualOverride();
   updateEarthDefaultView();
   controls.target.copy(earthDefaultTargetPosition);
   isZoomingOut = true;
@@ -429,6 +446,7 @@ function focusCameraOnPlanet(planet) {
   }
 
   planet.planet.getWorldPosition(planetFocusPosition);
+  clearManualOverride();
   controls.target.copy(planetFocusPosition);
 
   targetCameraPosition.copy(planetFocusPosition);
@@ -513,6 +531,7 @@ function clearAsteroidSelection() {
   removeImpactOverlay();
   selectedAsteroidEntry = null;
   isMovingTowardsAsteroid = false;
+  clearManualOverride();
   updateEarthDefaultView();
   controls.target.copy(earthDefaultTargetPosition);
   isZoomingOut = true;
@@ -528,6 +547,7 @@ function focusCameraOnAsteroid(entry) {
     return;
   }
 
+  clearManualOverride();
   entry.mesh.getWorldPosition(asteroidWorkVector);
   asteroidCameraTarget.copy(asteroidWorkVector).add(asteroidDefaultCameraOffset);
   controls.target.copy(asteroidWorkVector);
@@ -675,17 +695,24 @@ function animate() {
   updateEarthDefaultView();
   updateAsteroids();
 
-  if (selectedAsteroidEntry && selectedAsteroidEntry.mesh) {
-    selectedAsteroidEntry.mesh.getWorldPosition(asteroidFocusPoint);
-    controls.target.lerp(asteroidFocusPoint, 0.15);
+  if (!hasManualCameraOverride) {
+    if (selectedAsteroidEntry && selectedAsteroidEntry.mesh) {
+      selectedAsteroidEntry.mesh.getWorldPosition(asteroidFocusPoint);
+      controls.target.lerp(asteroidFocusPoint, 0.15);
 
-    if (!isMovingTowardsAsteroid) {
-      asteroidCameraTarget.copy(asteroidFocusPoint).add(asteroidDefaultCameraOffset);
-      camera.position.lerp(asteroidCameraTarget, 0.02);
+      if (!isMovingTowardsAsteroid) {
+        asteroidCameraTarget.copy(asteroidFocusPoint).add(asteroidDefaultCameraOffset);
+        camera.position.lerp(asteroidCameraTarget, 0.02);
+      }
+    } else if (
+      !selectedPlanet &&
+      !isMovingTowardsPlanet &&
+      !isMovingTowardsAsteroid &&
+      !isZoomingOut
+    ) {
+      controls.target.lerp(earthDefaultTargetPosition, 0.1);
+      camera.position.lerp(earthDefaultCameraPosition, 0.02);
     }
-  } else if (!selectedPlanet && !isMovingTowardsPlanet && !isMovingTowardsAsteroid && !isZoomingOut) {
-    controls.target.lerp(earthDefaultTargetPosition, 0.1);
-    camera.position.lerp(earthDefaultCameraPosition, 0.02);
   }
 
   if (selectedAsteroidEntry && selectedAsteroidEntry.mesh) {
@@ -707,7 +734,7 @@ function animate() {
     if (camera.position.distanceTo(asteroidCameraTarget) < 1) {
       isMovingTowardsAsteroid = false;
     }
-  } else if (isZoomingOut) {
+  } else if (isZoomingOut && !hasManualCameraOverride) {
     controls.target.lerp(earthDefaultTargetPosition, 0.1);
     camera.position.lerp(zoomOutTargetPosition, 0.05);
     if (camera.position.distanceTo(zoomOutTargetPosition) < 1) {
@@ -719,6 +746,9 @@ function animate() {
   requestAnimationFrame(animate);
   composer.render();
 }
+
+controls.addEventListener('start', activateManualOverride);
+controls.addEventListener('end', resetManualOrbiting);
 
 function onDocumentClick(event) {
   if (event.target !== renderer.domElement) {
