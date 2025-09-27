@@ -127,7 +127,10 @@ function setActiveViewTarget(id) {
 }
 
 const MIN_CAMERA_DISTANCE = 0.75;
+const MIN_CAMERA_DISTANCE_FLOOR = 0.2;
 const MIN_CAMERA_PADDING_FACTOR = 1.6;
+const SMALL_OBJECT_PADDING_FACTOR = 1.1;
+const SMALL_OBJECT_RADIUS_THRESHOLD = 2;
 const MAX_CAMERA_DISTANCE_FLOOR = 350;
 const MAX_CAMERA_DISTANCE_FACTOR = 15;
 
@@ -145,7 +148,21 @@ function setCameraZoomLimitsForObject(object, fallbackRadius = 8) {
     }
   }
 
-  const minDistance = Math.max(radius * MIN_CAMERA_PADDING_FACTOR, MIN_CAMERA_DISTANCE);
+  let minDistance;
+
+  if (radius <= SMALL_OBJECT_RADIUS_THRESHOLD) {
+    const t = Math.min(radius / SMALL_OBJECT_RADIUS_THRESHOLD, 1);
+    const paddingFactor = THREE.MathUtils.lerp(
+      SMALL_OBJECT_PADDING_FACTOR,
+      MIN_CAMERA_PADDING_FACTOR,
+      t
+    );
+    minDistance = Math.max(radius * paddingFactor, MIN_CAMERA_DISTANCE_FLOOR);
+  } else {
+    minDistance = radius * MIN_CAMERA_PADDING_FACTOR;
+  }
+
+  minDistance = Math.max(minDistance, MIN_CAMERA_DISTANCE);
   const maxDistance = Math.max(radius * MAX_CAMERA_DISTANCE_FACTOR, MAX_CAMERA_DISTANCE_FLOOR);
 
   controls.minDistance = minDistance;
