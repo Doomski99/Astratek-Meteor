@@ -235,7 +235,8 @@ function createAsteroidEntries(catalog = asteroidCatalog) {
     data,
     mesh: null,
     orbitAngle: data.initialPhase ?? index * 1.3,
-    orbitAngularVelocity: data.orbit.angularVelocity
+    orbitAngularVelocity: data.orbit.angularVelocity,
+    templateIndex: index
   }));
 }
 

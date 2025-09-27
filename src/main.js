@@ -35,7 +35,7 @@ import { scene, camera, renderer, controls, composer, outlinePass } from './core
 import { createPlanetFactory, planetData, createAsteroidEntries, asteroidCatalog } from './data/bodies.js';
 import { initAsteroidPanel } from './ui/asteroidPanel.js';
 import {
-  initializeAsteroidMeshes,
+  createAsteroidMeshManager,
   updateAsteroidTransform,
   getAsteroidMeshes,
   findAsteroidEntryFromObject,
@@ -132,7 +132,14 @@ if (viewTargetListElement) {
 
     const { targetId } = item.dataset;
     if (targetId === 'earth') {
-      clearAsteroidSelection();
+      setActiveViewTarget('earth');
+      const earthTarget = typeof earth !== 'undefined' ? earth.planet : null;
+      setCameraZoomLimitsForObject(earthTarget, 6.4);
+      updateEarthDefaultView(true);
+      isManualOrbiting = false;
+      isMovingTowardsAsteroid = false;
+      isMovingTowardsPlanet = false;
+      isZoomingOut = true;
     }
   });
 }
@@ -293,13 +300,23 @@ const asteroidPanel = initAsteroidPanel(asteroidEntries, {
   onSelect: id => handleAsteroidSelection(id)
 });
 
+const asteroidMeshManagerPromise = createAsteroidMeshManager({ scene, settings });
+let asteroidMeshManager = null;
+
+async function getAsteroidMeshManager() {
+  if (asteroidMeshManager) {
+    return asteroidMeshManager;
+  }
+
+  asteroidMeshManager = await asteroidMeshManagerPromise;
+  return asteroidMeshManager;
+}
+
 let selectedAsteroidEntry = null;
 let hoveredAsteroidEntry = null;
 let asteroidTrajectoryLine = null;
 let asteroidImpactOverlay = null;
 let isMovingTowardsAsteroid = false;
-
-initializeAsteroidMeshes({ entries: asteroidEntries, scene, settings });
 
 const earthMaterial = new THREE.ShaderMaterial({
   uniforms: {
@@ -588,21 +605,40 @@ function createImpactOverlay(entry) {
   }
 }
 
-function clearAsteroidSelection() {
-  if (selectedAsteroidEntry) {
-    asteroidPanel.clearSelection();
+function clearAsteroidSelection({ keepCamera = false, keepViewTarget = false } = {}) {
+  if (!selectedAsteroidEntry) {
+    return;
   }
+
+  asteroidPanel.clearSelection();
   removeTrajectoryLine();
   removeImpactOverlay();
+
+  const previousEntry = selectedAsteroidEntry;
+  if (previousEntry.mesh) {
+    if (asteroidMeshManager) {
+      asteroidMeshManager.removeMesh(previousEntry);
+    } else {
+      disposeObject(previousEntry.mesh);
+      previousEntry.mesh = null;
+    }
+  }
+
   selectedAsteroidEntry = null;
   isMovingTowardsAsteroid = false;
-  setActiveViewTarget('earth');
-  const earthTarget = typeof earth !== 'undefined' ? earth.planet : null;
-  setCameraZoomLimitsForObject(earthTarget, 6.4);
-  updateEarthDefaultView();
-  controls.target.copy(earthDefaultTargetPosition);
-  isManualOrbiting = false;
-  isZoomingOut = true;
+
+  if (!keepViewTarget) {
+    setActiveViewTarget('earth');
+  }
+
+  if (!keepCamera) {
+    const earthTarget = typeof earth !== 'undefined' ? earth.planet : null;
+    setCameraZoomLimitsForObject(earthTarget, 6.4);
+    updateEarthDefaultView();
+    controls.target.copy(earthDefaultTargetPosition);
+    isManualOrbiting = false;
+    isZoomingOut = true;
+  }
 }
 
 function focusCameraOnAsteroid(entry) {
@@ -624,18 +660,24 @@ function focusCameraOnAsteroid(entry) {
   isMovingTowardsAsteroid = true;
 }
 
-function handleAsteroidSelection(id) {
+async function handleAsteroidSelection(id) {
   const entry = asteroidEntries.find(item => item.data.id === id);
-  if (!entry || !entry.mesh) {
+  if (!entry) {
     return;
   }
+
+  const meshManager = await getAsteroidMeshManager();
 
   if (selectedAsteroidEntry && selectedAsteroidEntry.data.id === id) {
     clearAsteroidSelection();
     return;
   }
 
-  clearAsteroidSelection();
+  if (selectedAsteroidEntry) {
+    clearAsteroidSelection({ keepCamera: true, keepViewTarget: true });
+  }
+
+  meshManager.ensureMesh(entry);
 
   selectedAsteroidEntry = entry;
   setActiveViewTarget(null);
