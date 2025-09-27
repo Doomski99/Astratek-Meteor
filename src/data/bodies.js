@@ -200,7 +200,7 @@ function createPlanetFactory({ scene, textureLoader }) {
     }
 
     if (moons) {
-      moons.forEach(moon => {
+      moons.forEach((moon, index) => {
         let moonMaterial;
 
         if (moon.bump) {
@@ -216,10 +216,14 @@ function createPlanetFactory({ scene, textureLoader }) {
         }
         const moonGeometry = new THREE.SphereGeometry(moon.size, 32, 20);
         const moonMesh = new THREE.Mesh(moonGeometry, moonMaterial);
-        const moonOrbitDistance = size * 1.5;
-        moonMesh.position.set(moonOrbitDistance, 0, 0);
+        const orbitRadius = moon.orbitRadius ?? size * 1.5;
+        moonMesh.position.set(orbitRadius, 0, 0);
         planetSystem.add(moonMesh);
         moon.mesh = moonMesh;
+        moon.orbitRadius = orbitRadius;
+        moon.initialPhase = moon.initialPhase ?? index * (Math.PI / 2);
+        moon.spinRate = moon.spinRate ?? 0;
+        moon.baseRotation = moonMesh.rotation.y;
       });
     }
 
@@ -234,7 +238,7 @@ function createAsteroidEntries(catalog = asteroidCatalog) {
   return catalog.map((data, index) => ({
     data,
     mesh: null,
-    orbitAngle: data.initialPhase ?? index * 1.3,
+    initialPhase: data.initialPhase ?? index * 1.3,
     orbitAngularVelocity: data.orbit.angularVelocity,
     templateIndex: index
   }));

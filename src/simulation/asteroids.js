@@ -13,18 +13,15 @@ function getYieldBand(tntMt) {
   return 'high';
 }
 
-function updateAsteroidTransform(entry, settings, advance = true) {
+function updateAsteroidTransform(entry, timing = { orbitFrames: 0, spinFrames: 0 }) {
   if (!entry.mesh) {
     return;
   }
 
-  if (advance) {
-    entry.orbitAngle += entry.orbitAngularVelocity * settings.accelerationOrbit;
-  }
-
   const { semiMajorAxis: a, eccentricity, inclination } = entry.data.orbit;
   const b = a * Math.sqrt(1 - Math.pow(eccentricity, 2));
-  const angle = entry.orbitAngle;
+  const orbitFrames = timing.orbitFrames ?? 0;
+  const angle = (entry.initialPhase ?? 0) + entry.orbitAngularVelocity * orbitFrames;
 
   const x = a * Math.cos(angle);
   const z = b * Math.sin(angle);
@@ -34,7 +31,8 @@ function updateAsteroidTransform(entry, settings, advance = true) {
   entry.mesh.position.set(x, y, z);
 
   const spinRate = entry.data.spinRate ?? 0.001;
-  entry.mesh.rotation.y += spinRate * settings.acceleration;
+  const baseRotation = entry.baseRotationY ?? entry.mesh.rotation.y;
+  entry.mesh.rotation.y = baseRotation + spinRate * (timing.spinFrames ?? 0);
 }
 
 function getTrajectoryPoints(entry, earthWorldPosition, elevation = 20) {
@@ -109,7 +107,11 @@ function findAsteroidEntryFromObject(entries, object) {
   return entries.find(entry => entry.data.id === asteroidId) ?? null;
 }
 
-async function createAsteroidMeshManager({ scene, settings, gltfPath = '/asteroids/asteroidPack.glb' }) {
+async function createAsteroidMeshManager({
+  scene,
+  getCurrentTiming,
+  gltfPath = '/asteroids/asteroidPack.glb'
+}) {
   const loader = new GLTFLoader();
 
   const templateMeshes = await new Promise(resolve => {
@@ -189,10 +191,15 @@ async function createAsteroidMeshManager({ scene, settings, gltfPath = '/asteroi
     return mesh;
   }
 
-  function ensureMesh(entry) {
+  function ensureMesh(entry, timingOverride) {
     if (entry.mesh) {
       if (!entry.mesh.parent) {
         scene.add(entry.mesh);
+      }
+      const timing =
+        timingOverride ?? (typeof getCurrentTiming === 'function' ? getCurrentTiming() : undefined);
+      if (timing) {
+        updateAsteroidTransform(entry, timing);
       }
       return entry.mesh;
     }
@@ -200,7 +207,12 @@ async function createAsteroidMeshManager({ scene, settings, gltfPath = '/asteroi
     const mesh = hasTemplates ? createMeshFromTemplate(entry) : createFallbackMesh(entry);
     scene.add(mesh);
     entry.mesh = mesh;
-    updateAsteroidTransform(entry, settings, false);
+    entry.baseRotationY = mesh.rotation.y;
+    const timing =
+      timingOverride ?? (typeof getCurrentTiming === 'function' ? getCurrentTiming() : undefined);
+    if (timing) {
+      updateAsteroidTransform(entry, timing);
+    }
     return mesh;
   }
 
@@ -211,6 +223,7 @@ async function createAsteroidMeshManager({ scene, settings, gltfPath = '/asteroi
 
     disposeObject(entry.mesh);
     entry.mesh = null;
+    entry.baseRotationY = undefined;
   }
 
   return {
