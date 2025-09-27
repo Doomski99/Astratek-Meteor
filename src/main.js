@@ -81,13 +81,15 @@ const targetBoundingBox = new THREE.Box3();
 const targetBoundingSphere = new THREE.Sphere();
 
 let isManualOrbiting = false;
+let isUserOrbitControlsActive = false;
 
 controls.addEventListener('start', () => {
   isManualOrbiting = true;
+  isUserOrbitControlsActive = true;
 });
 
 controls.addEventListener('end', () => {
-  // keep the manual flag until the UI requests a recenter, so orbit input persists
+  isUserOrbitControlsActive = false;
 });
 
 const viewTargetListElement = document.getElementById('viewTargetList');
@@ -746,22 +748,35 @@ function animate() {
   if (selectedAsteroidEntry && selectedAsteroidEntry.mesh) {
     selectedAsteroidEntry.mesh.getWorldPosition(asteroidFocusPoint);
 
-    previousControlsTarget.copy(controls.target);
-    controls.target.lerp(asteroidFocusPoint, 0.15);
+    const shouldUpdateAsteroidTarget = !isUserOrbitControlsActive || isMovingTowardsAsteroid;
+    let asteroidTargetUpdated = false;
+
+    if (shouldUpdateAsteroidTarget) {
+      previousControlsTarget.copy(controls.target);
+      controls.target.lerp(asteroidFocusPoint, 0.15);
+      asteroidTargetUpdated = true;
+    }
 
     if (isMovingTowardsAsteroid) {
       asteroidCameraTarget.copy(asteroidFocusPoint).add(asteroidDefaultCameraOffset);
-    } else if (isManualOrbiting) {
+    } else if (isManualOrbiting && asteroidTargetUpdated) {
       controlsTargetDelta.subVectors(controls.target, previousControlsTarget);
       camera.position.add(controlsTargetDelta);
-    } else {
+    } else if (!isManualOrbiting) {
       asteroidCameraTarget.copy(asteroidFocusPoint).add(asteroidDefaultCameraOffset);
       camera.position.lerp(asteroidCameraTarget, 0.02);
     }
   } else if (!selectedPlanet && !isMovingTowardsPlanet && !isMovingTowardsAsteroid && !isZoomingOut) {
-    controls.target.lerp(earthDefaultTargetPosition, 0.1);
-    if (!isManualOrbiting) {
-      camera.position.lerp(earthDefaultCameraPosition, 0.02);
+    if (!isUserOrbitControlsActive) {
+      previousControlsTarget.copy(controls.target);
+      controls.target.lerp(earthDefaultTargetPosition, 0.1);
+
+      if (isManualOrbiting) {
+        controlsTargetDelta.subVectors(controls.target, previousControlsTarget);
+        camera.position.add(controlsTargetDelta);
+      } else {
+        camera.position.lerp(earthDefaultCameraPosition, 0.02);
+      }
     }
   }
 
