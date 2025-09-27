@@ -63,6 +63,8 @@ if (customContainer) {
   customContainer.appendChild(gui.domElement);
 }
 
+const focusEarthButton = document.getElementById('focusEarthButton');
+
 const settings = {
   accelerationOrbit: 1,
   acceleration: 1,
@@ -525,6 +527,7 @@ function clearAsteroidSelection() {
   if (selectedAsteroidEntry) {
     asteroidPanel.clearSelection();
   }
+  selectedPlanet = null;
   removeTrajectoryLine();
   removeImpactOverlay();
   selectedAsteroidEntry = null;
@@ -532,6 +535,12 @@ function clearAsteroidSelection() {
   updateEarthDefaultView();
   controls.target.copy(earthDefaultTargetPosition);
   isZoomingOut = true;
+}
+
+if (focusEarthButton) {
+  focusEarthButton.addEventListener('click', () => {
+    clearAsteroidSelection();
+  });
 }
 
 function focusCameraOnAsteroid(entry) {
@@ -612,12 +621,6 @@ function onDocumentMouseDown(event) {
   mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
   updateHoveredAsteroid();
-
-  if (hoveredAsteroidEntry) {
-    handleAsteroidSelection(hoveredAsteroidEntry.data.id);
-  } else {
-    clearAsteroidSelection();
-  }
 }
 
 function updateAsteroids() {
@@ -694,11 +697,14 @@ function animate() {
 
   if (selectedAsteroidEntry && selectedAsteroidEntry.mesh) {
     selectedAsteroidEntry.mesh.getWorldPosition(asteroidFocusPoint);
-    controls.target.lerp(asteroidFocusPoint, 0.15);
 
-    if (!isMovingTowardsAsteroid) {
-      asteroidCameraTarget.copy(asteroidFocusPoint).add(asteroidDefaultCameraOffset);
-      camera.position.lerp(asteroidCameraTarget, 0.02);
+    if (!isManualOrbiting) {
+      controls.target.lerp(asteroidFocusPoint, 0.15);
+
+      if (!isMovingTowardsAsteroid) {
+        asteroidCameraTarget.copy(asteroidFocusPoint).add(asteroidDefaultCameraOffset);
+        camera.position.lerp(asteroidCameraTarget, 0.02);
+      }
     }
   } else if (
     !selectedPlanet &&
@@ -731,8 +737,10 @@ function animate() {
       isMovingTowardsAsteroid = false;
     }
   } else if (isZoomingOut) {
-    controls.target.lerp(earthDefaultTargetPosition, 0.1);
-    camera.position.lerp(zoomOutTargetPosition, 0.05);
+    if (!isManualOrbiting) {
+      controls.target.lerp(earthDefaultTargetPosition, 0.1);
+      camera.position.lerp(zoomOutTargetPosition, 0.05);
+    }
     if (camera.position.distanceTo(zoomOutTargetPosition) < 1) {
       isZoomingOut = false;
     }

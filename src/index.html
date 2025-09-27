@@ -17,7 +17,10 @@
 <body>
     <div id="gui-container"></div>
     <aside id="asteroidListPanel" class="asteroid-panel">
-        <header class="asteroid-panel__header">Tracked Asteroids</header>
+        <header class="asteroid-panel__header">
+            <span class="asteroid-panel__title">Tracked Asteroids</span>
+            <button id="focusEarthButton" class="asteroid-panel__action" type="button">Focus Earth</button>
+        </header>
         <ul id="asteroidList" class="asteroid-panel__list"></ul>
     </aside>
     <div id="impactLegendOverlay" class="impact-legend">

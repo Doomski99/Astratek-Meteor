@@ -56,12 +56,40 @@ p {
 }
 
 .asteroid-panel__header {
-    margin: 0 0 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin: 0 0 12px;
+}
+
+.asteroid-panel__title {
     font-size: 16px;
     font-weight: 600;
     letter-spacing: 0.04em;
     text-transform: uppercase;
     color: #9ecbff;
+}
+
+.asteroid-panel__action {
+    padding: 6px 10px;
+    border: 1px solid rgba(158, 203, 255, 0.6);
+    border-radius: 4px;
+    background: rgba(30, 60, 110, 0.55);
+    color: #e6f0ff;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.asteroid-panel__action:hover,
+.asteroid-panel__action:focus {
+    background: rgba(76, 130, 200, 0.75);
+    border-color: rgba(190, 225, 255, 0.85);
+    outline: none;
 }
 
 .asteroid-panel__list {
