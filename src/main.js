@@ -335,7 +335,40 @@ const asteroidYieldRadiusScale = {
   high: 2.6
 };
 
-const asteroidDefaultCameraOffset = new THREE.Vector3(25, 15, 25);
+const defaultAsteroidCameraOffset = new THREE.Vector3(25, 15, 25);
+const asteroidCameraOffsetDirection = defaultAsteroidCameraOffset.clone().normalize();
+const ASTEROID_CAMERA_OFFSET_RADIUS_MULTIPLIER = 4;
+const ASTEROID_CAMERA_OFFSET_MIN = 1.5;
+const ASTEROID_CAMERA_OFFSET_MIN_MULTIPLIER = 2;
+
+function computeAsteroidCameraOffset(entry) {
+  if (!entry?.mesh) {
+    return defaultAsteroidCameraOffset.clone();
+  }
+
+  targetBoundingBox.setFromObject(entry.mesh);
+  if (targetBoundingBox.isEmpty()) {
+    return defaultAsteroidCameraOffset.clone();
+  }
+
+  targetBoundingBox.getBoundingSphere(targetBoundingSphere);
+  const radius = targetBoundingSphere.radius || 0;
+  if (radius <= 0) {
+    return defaultAsteroidCameraOffset.clone();
+  }
+
+  const minDistanceFromZoom = controls.minDistance ?? 0;
+  const targetDistance = Math.max(
+    radius * ASTEROID_CAMERA_OFFSET_RADIUS_MULTIPLIER,
+    minDistanceFromZoom * ASTEROID_CAMERA_OFFSET_MIN_MULTIPLIER,
+    ASTEROID_CAMERA_OFFSET_MIN
+  );
+
+  return asteroidCameraOffsetDirection
+    .clone()
+    .multiplyScalar(targetDistance);
+}
+
 const asteroidFocusPoint = new THREE.Vector3();
 const asteroidCameraTarget = new THREE.Vector3();
 const asteroidWorkVector = new THREE.Vector3();
@@ -732,6 +765,8 @@ function clearAsteroidSelection({ keepCamera = false, keepViewTarget = false } =
     }
   }
 
+  previousEntry.cameraOffset = null;
+
   selectedAsteroidEntry = null;
   isMovingTowardsAsteroid = false;
 
@@ -761,8 +796,10 @@ function focusCameraOnAsteroid(entry) {
 
   setCameraZoomLimitsForObject(entry.mesh, 2.5);
 
+  entry.cameraOffset = computeAsteroidCameraOffset(entry);
+
   entry.mesh.getWorldPosition(asteroidWorkVector);
-  asteroidCameraTarget.copy(asteroidWorkVector).add(asteroidDefaultCameraOffset);
+  asteroidCameraTarget.copy(asteroidWorkVector).add(entry.cameraOffset);
   controls.target.copy(asteroidWorkVector);
   isManualOrbiting = false;
   isMovingTowardsAsteroid = true;
@@ -931,6 +968,12 @@ function animate(now = performance.now()) {
   if (selectedAsteroidEntry && selectedAsteroidEntry.mesh) {
     selectedAsteroidEntry.mesh.getWorldPosition(asteroidFocusPoint);
 
+    let asteroidCameraOffset = selectedAsteroidEntry.cameraOffset;
+    if (!asteroidCameraOffset) {
+      asteroidCameraOffset = computeAsteroidCameraOffset(selectedAsteroidEntry);
+      selectedAsteroidEntry.cameraOffset = asteroidCameraOffset;
+    }
+
     const shouldUpdateAsteroidTarget = !isUserOrbitControlsActive || isMovingTowardsAsteroid;
     let asteroidTargetUpdated = false;
 
@@ -941,12 +984,12 @@ function animate(now = performance.now()) {
     }
 
     if (isMovingTowardsAsteroid) {
-      asteroidCameraTarget.copy(asteroidFocusPoint).add(asteroidDefaultCameraOffset);
+      asteroidCameraTarget.copy(asteroidFocusPoint).add(asteroidCameraOffset);
     } else if (isManualOrbiting && asteroidTargetUpdated) {
       controlsTargetDelta.subVectors(controls.target, previousControlsTarget);
       camera.position.add(controlsTargetDelta);
     } else if (!isManualOrbiting) {
-      asteroidCameraTarget.copy(asteroidFocusPoint).add(asteroidDefaultCameraOffset);
+      asteroidCameraTarget.copy(asteroidFocusPoint).add(asteroidCameraOffset);
       camera.position.lerp(asteroidCameraTarget, 0.02);
     }
   } else if (!selectedPlanet && !isMovingTowardsPlanet && !isMovingTowardsAsteroid && !isZoomingOut) {
