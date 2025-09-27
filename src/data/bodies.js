@@ -8,7 +8,7 @@ const asteroidCatalog = [
     tntYieldMt: 800,
     orbit: { semiMajorAxis: 150, eccentricity: 0.12, inclination: 6, angularVelocity: 0.00012 },
     spinRate: 0.0015,
-    visualScale: 0.018,
+    visualScale: 0.02,
     description: 'Potentially hazardous Aten asteroid with a close 2029 approach.'
   },
   {
@@ -18,7 +18,7 @@ const asteroidCatalog = [
     tntYieldMt: 4.5,
     orbit: { semiMajorAxis: 120, eccentricity: 0.21, inclination: 6, angularVelocity: 0.00009 },
     spinRate: 0.0018,
-    visualScale: 0.016,
+    visualScale: 0.024,
     description: 'Carbonaceous near-Earth asteroid sampled by OSIRIS-REx.'
   },
   {
@@ -28,7 +28,7 @@ const asteroidCatalog = [
     tntYieldMt: 15.0,
     orbit: { semiMajorAxis: 180, eccentricity: 0.08, inclination: 3, angularVelocity: 0.00007 },
     spinRate: 0.0012,
-    visualScale: 0.02,
+    visualScale: 0.03,
     description: 'Binary system primary targeted by the DART mission.'
   }
 ];
@@ -200,7 +200,7 @@ function createPlanetFactory({ scene, textureLoader }) {
     }
 
     if (moons) {
-      moons.forEach(moon => {
+      moons.forEach((moon, index) => {
         let moonMaterial;
 
         if (moon.bump) {
@@ -216,10 +216,14 @@ function createPlanetFactory({ scene, textureLoader }) {
         }
         const moonGeometry = new THREE.SphereGeometry(moon.size, 32, 20);
         const moonMesh = new THREE.Mesh(moonGeometry, moonMaterial);
-        const moonOrbitDistance = size * 1.5;
-        moonMesh.position.set(moonOrbitDistance, 0, 0);
+        const orbitRadius = moon.orbitRadius ?? size * 1.5;
+        moonMesh.position.set(orbitRadius, 0, 0);
         planetSystem.add(moonMesh);
         moon.mesh = moonMesh;
+        moon.orbitRadius = orbitRadius;
+        moon.initialPhase = moon.initialPhase ?? index * (Math.PI / 2);
+        moon.spinRate = moon.spinRate ?? 0;
+        moon.baseRotation = moonMesh.rotation.y;
       });
     }
 
@@ -234,8 +238,9 @@ function createAsteroidEntries(catalog = asteroidCatalog) {
   return catalog.map((data, index) => ({
     data,
     mesh: null,
-    orbitAngle: data.initialPhase ?? index * 1.3,
-    orbitAngularVelocity: data.orbit.angularVelocity
+    initialPhase: data.initialPhase ?? index * 1.3,
+    orbitAngularVelocity: data.orbit.angularVelocity,
+    templateIndex: index
   }));
 }
 

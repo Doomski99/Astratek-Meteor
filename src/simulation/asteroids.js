@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
+const ASTEROID_SCALE_MULTIPLIER = 6;
+
 function getYieldBand(tntMt) {
   if (tntMt <= 1) {
     return 'low';
@@ -13,18 +15,15 @@ function getYieldBand(tntMt) {
   return 'high';
 }
 
-function updateAsteroidTransform(entry, settings, advance = true) {
+function updateAsteroidTransform(entry, timing = { orbitFrames: 0, spinFrames: 0 }) {
   if (!entry.mesh) {
     return;
   }
 
-  if (advance) {
-    entry.orbitAngle += entry.orbitAngularVelocity * settings.accelerationOrbit;
-  }
-
   const { semiMajorAxis: a, eccentricity, inclination } = entry.data.orbit;
   const b = a * Math.sqrt(1 - Math.pow(eccentricity, 2));
-  const angle = entry.orbitAngle;
+  const orbitFrames = timing.orbitFrames ?? 0;
+  const angle = (entry.initialPhase ?? 0) + entry.orbitAngularVelocity * orbitFrames;
 
   const x = a * Math.cos(angle);
   const z = b * Math.sin(angle);
@@ -34,7 +33,8 @@ function updateAsteroidTransform(entry, settings, advance = true) {
   entry.mesh.position.set(x, y, z);
 
   const spinRate = entry.data.spinRate ?? 0.001;
-  entry.mesh.rotation.y += spinRate * settings.acceleration;
+  const baseRotation = entry.baseRotationY ?? entry.mesh.rotation.y;
+  entry.mesh.rotation.y = baseRotation + spinRate * (timing.spinFrames ?? 0);
 }
 
 function getTrajectoryPoints(entry, earthWorldPosition, elevation = 20) {
@@ -109,71 +109,38 @@ function findAsteroidEntryFromObject(entries, object) {
   return entries.find(entry => entry.data.id === asteroidId) ?? null;
 }
 
-function initializeAsteroidMeshes({ entries, scene, settings, gltfPath = '/asteroids/asteroidPack.glb' }) {
+async function createAsteroidMeshManager({
+  scene,
+  getCurrentTiming,
+  gltfPath = '/asteroids/asteroidPack.glb'
+}) {
   const loader = new GLTFLoader();
 
-  return new Promise(resolve => {
+  const templateMeshes = await new Promise(resolve => {
     loader.load(
       gltfPath,
       gltf => {
-        const templates = [];
+        const meshes = [];
         gltf.scene.traverse(child => {
           if (child.isMesh) {
-            templates.push(child);
+            meshes.push(child);
           }
         });
 
-        if (templates.length === 0) {
-          createFallbackAsteroids(entries, scene, settings);
-          resolve(false);
-          return;
-        }
-
-        entries.forEach((entry, index) => {
-          const source = templates[index % templates.length].clone(true);
-          if (source.geometry) {
-            source.geometry = source.geometry.clone();
-          }
-          if (Array.isArray(source.material)) {
-            source.material = source.material.map(material => material.clone());
-          } else if (source.material) {
-            source.material = source.material.clone();
-          }
-
-          source.scale.setScalar(entry.data.visualScale);
-          source.castShadow = true;
-          source.receiveShadow = true;
-          source.name = entry.data.name;
-
-          source.traverse(node => {
-            node.userData = node.userData || {};
-            node.userData.asteroidId = entry.data.id;
-            node.userData.metadata = entry.data;
-          });
-
-          scene.add(source);
-          entry.mesh = source;
-          updateAsteroidTransform(entry, settings, false);
-        });
-
-        resolve(true);
+        resolve(meshes.length > 0 ? meshes : null);
       },
       undefined,
       () => {
-        createFallbackAsteroids(entries, scene, settings);
-        resolve(false);
+        resolve(null);
       }
     );
   });
-}
 
-function createFallbackAsteroids(entries, scene, settings) {
-  const baseGeometry = new THREE.IcosahedronGeometry(2, 1);
+  const hasTemplates = Array.isArray(templateMeshes) && templateMeshes.length > 0;
+  const fallbackGeometry = hasTemplates ? null : new THREE.IcosahedronGeometry(2, 1);
 
-  entries.forEach(entry => {
-    const material = new THREE.MeshStandardMaterial({ color: 0xadb5bd, flatShading: true });
-    const mesh = new THREE.Mesh(baseGeometry.clone(), material);
-    mesh.scale.setScalar(entry.data.visualScale * 8);
+  function applyMetadata(mesh, entry) {
+    mesh.scale.setScalar(entry.data.visualScale * ASTEROID_SCALE_MULTIPLIER);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     mesh.name = entry.data.name;
@@ -181,10 +148,90 @@ function createFallbackAsteroids(entries, scene, settings) {
     mesh.userData.asteroidId = entry.data.id;
     mesh.userData.metadata = entry.data;
 
+    mesh.traverse(node => {
+      if (!node.isMesh) {
+        return;
+      }
+
+      if (node.geometry) {
+        node.geometry = node.geometry.clone();
+      }
+
+      if (Array.isArray(node.material)) {
+        node.material = node.material.map(material => material.clone());
+      } else if (node.material) {
+        node.material = node.material.clone();
+      }
+
+      node.castShadow = true;
+      node.receiveShadow = true;
+      node.userData = node.userData || {};
+      node.userData.asteroidId = entry.data.id;
+      node.userData.metadata = entry.data;
+    });
+  }
+
+  function createMeshFromTemplate(entry) {
+    const templateIndex = entry.templateIndex ?? 0;
+    const template = templateMeshes[templateIndex % templateMeshes.length];
+    const mesh = template.clone(true);
+    applyMetadata(mesh, entry);
+    return mesh;
+  }
+
+  function createFallbackMesh(entry) {
+    const geometry = fallbackGeometry.clone();
+    const material = new THREE.MeshStandardMaterial({ color: 0xadb5bd, flatShading: true });
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.scale.setScalar(entry.data.visualScale * ASTEROID_SCALE_MULTIPLIER);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    mesh.name = entry.data.name;
+    mesh.userData = mesh.userData || {};
+    mesh.userData.asteroidId = entry.data.id;
+    mesh.userData.metadata = entry.data;
+    return mesh;
+  }
+
+  function ensureMesh(entry, timingOverride) {
+    if (entry.mesh) {
+      if (!entry.mesh.parent) {
+        scene.add(entry.mesh);
+      }
+      const timing =
+        timingOverride ?? (typeof getCurrentTiming === 'function' ? getCurrentTiming() : undefined);
+      if (timing) {
+        updateAsteroidTransform(entry, timing);
+      }
+      return entry.mesh;
+    }
+
+    const mesh = hasTemplates ? createMeshFromTemplate(entry) : createFallbackMesh(entry);
     scene.add(mesh);
     entry.mesh = mesh;
-    updateAsteroidTransform(entry, settings, false);
-  });
+    entry.baseRotationY = mesh.rotation.y;
+    const timing =
+      timingOverride ?? (typeof getCurrentTiming === 'function' ? getCurrentTiming() : undefined);
+    if (timing) {
+      updateAsteroidTransform(entry, timing);
+    }
+    return mesh;
+  }
+
+  function removeMesh(entry) {
+    if (!entry?.mesh) {
+      return;
+    }
+
+    disposeObject(entry.mesh);
+    entry.mesh = null;
+    entry.baseRotationY = undefined;
+  }
+
+  return {
+    ensureMesh,
+    removeMesh
+  };
 }
 
 function disposeObject(object) {
@@ -217,7 +264,6 @@ export {
   createImpactOverlayMesh,
   getAsteroidMeshes,
   findAsteroidEntryFromObject,
-  initializeAsteroidMeshes,
-  createFallbackAsteroids,
+  createAsteroidMeshManager,
   disposeObject
 };
