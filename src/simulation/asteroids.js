@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
+const ASTEROID_SCALE_MULTIPLIER = 6;
+
 function getYieldBand(tntMt) {
   if (tntMt <= 1) {
     return 'low';
@@ -138,7 +140,7 @@ async function createAsteroidMeshManager({
   const fallbackGeometry = hasTemplates ? null : new THREE.IcosahedronGeometry(2, 1);
 
   function applyMetadata(mesh, entry) {
-    mesh.scale.setScalar(entry.data.visualScale);
+    mesh.scale.setScalar(entry.data.visualScale * ASTEROID_SCALE_MULTIPLIER);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     mesh.name = entry.data.name;
@@ -181,7 +183,7 @@ async function createAsteroidMeshManager({
     const geometry = fallbackGeometry.clone();
     const material = new THREE.MeshStandardMaterial({ color: 0xadb5bd, flatShading: true });
     const mesh = new THREE.Mesh(geometry, material);
-    mesh.scale.setScalar(entry.data.visualScale * 8);
+    mesh.scale.setScalar(entry.data.visualScale * ASTEROID_SCALE_MULTIPLIER);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     mesh.name = entry.data.name;
