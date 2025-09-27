@@ -56,6 +56,47 @@ function ensureStyles() {
       white-space: nowrap;
       font-variant-numeric: tabular-nums;
     }
+
+    .time-controls__speed-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-left: 4px;
+    }
+
+    .time-controls__speed-label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: rgba(248, 249, 250, 0.75);
+    }
+
+    .time-controls__speed-button {
+      appearance: none;
+      border: none;
+      background: rgba(255, 255, 255, 0.12);
+      color: #f1f5f9;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: background 0.2s ease, color 0.2s ease;
+    }
+
+    .time-controls__speed-button:hover {
+      background: rgba(255, 255, 255, 0.22);
+    }
+
+    .time-controls__speed-button:focus-visible {
+      outline: 2px solid #90e0ef;
+      outline-offset: 2px;
+    }
+
+    .time-controls__speed-button--active {
+      background: #48cae4;
+      color: #001219;
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.35);
+    }
   `;
 
   document.head.appendChild(style);
@@ -76,6 +117,8 @@ function formatTime(ms) {
 
   return parts.join(':');
 }
+
+const SPEED_OPTIONS = [1, 2, 5, 10, 100];
 
 function initTimeControls(clock, { container = document.body } = {}) {
   if (!clock) {
@@ -100,12 +143,33 @@ function initTimeControls(clock, { container = document.body } = {}) {
   const label = document.createElement('span');
   label.className = 'time-controls__label';
 
+  const speedGroup = document.createElement('div');
+  speedGroup.className = 'time-controls__speed-group';
+
+  const speedLabel = document.createElement('span');
+  speedLabel.className = 'time-controls__speed-label';
+  speedLabel.textContent = 'Speed';
+  speedGroup.appendChild(speedLabel);
+
+  const speedButtons = SPEED_OPTIONS.map(rate => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'time-controls__speed-button';
+    button.textContent = `${rate}x`;
+    button.addEventListener('click', () => {
+      clock.setPlaybackRate(rate);
+    });
+    speedGroup.appendChild(button);
+    return { rate, button };
+  });
+
   wrapper.appendChild(playPauseButton);
   wrapper.appendChild(slider);
+  wrapper.appendChild(speedGroup);
   wrapper.appendChild(label);
 
   const updateUI = state => {
-    const { time, paused, duration } = state;
+    const { time, paused, duration, playbackRate = 1 } = state;
     slider.max = String(duration);
     slider.value = String(time);
     playPauseButton.textContent = paused ? 'Play' : 'Pause';
@@ -113,6 +177,12 @@ function initTimeControls(clock, { container = document.body } = {}) {
     const formattedCurrent = formatTime(time);
     const formattedDuration = formatTime(duration);
     label.textContent = `${formattedCurrent} / ${formattedDuration}`;
+
+    speedButtons.forEach(({ rate, button }) => {
+      const isActive = Math.abs(rate - playbackRate) < 1e-9;
+      button.classList.toggle('time-controls__speed-button--active', isActive);
+      button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    });
   };
 
   const unsubscribe = clock.subscribe(updateUI);

@@ -14,16 +14,23 @@ function normalizeTime(value, duration, loopEnabled) {
   return wrapped < 0 ? wrapped + duration : wrapped;
 }
 
-function createSimulationClock({ duration = 60 * 60 * 1000, loop = true } = {}) {
+function createSimulationClock({ duration = 60 * 60 * 1000, loop = true, playbackRate: initialPlaybackRate = 1 } = {}) {
   let time = 0;
   let paused = false;
   let loopEnabled = loop;
   let totalDuration = duration;
+  let playbackRate = initialPlaybackRate;
 
   const listeners = new Set();
 
   function emit() {
-    const snapshot = { time, paused, duration: totalDuration };
+    const snapshot = {
+      time,
+      paused,
+      duration: totalDuration,
+      playbackRate,
+      loop: loopEnabled
+    };
     listeners.forEach(listener => {
       try {
         listener(snapshot);
@@ -48,7 +55,7 @@ function createSimulationClock({ duration = 60 * 60 * 1000, loop = true } = {}) 
       return time;
     }
 
-    return setTime(time + delta);
+    return setTime(time + delta * playbackRate);
   }
 
   function reset() {
@@ -87,7 +94,7 @@ function createSimulationClock({ duration = 60 * 60 * 1000, loop = true } = {}) 
   }
 
   function getState() {
-    return { time, paused, duration: totalDuration, loop: loopEnabled };
+    return { time, paused, duration: totalDuration, loop: loopEnabled, playbackRate };
   }
 
   function getTime() {
@@ -110,6 +117,22 @@ function createSimulationClock({ duration = 60 * 60 * 1000, loop = true } = {}) 
     return () => {
       listeners.delete(listener);
     };
+  }
+
+  function setPlaybackRate(nextRate) {
+    if (!Number.isFinite(nextRate) || nextRate <= 0) {
+      throw new Error('Playback rate must be a positive finite number.');
+    }
+    if (nextRate === playbackRate) {
+      return playbackRate;
+    }
+    playbackRate = nextRate;
+    emit();
+    return playbackRate;
+  }
+
+  function getPlaybackRate() {
+    return playbackRate;
   }
 
   function createChannel(initialMultiplier = 1) {
@@ -163,7 +186,9 @@ function createSimulationClock({ duration = 60 * 60 * 1000, loop = true } = {}) 
     togglePaused,
     setLoop,
     subscribe,
-    createChannel
+    createChannel,
+    setPlaybackRate,
+    getPlaybackRate
   };
 }
 
