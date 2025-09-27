@@ -279,6 +279,8 @@ const asteroidDefaultCameraOffset = new THREE.Vector3(25, 15, 25);
 const asteroidFocusPoint = new THREE.Vector3();
 const asteroidCameraTarget = new THREE.Vector3();
 const asteroidWorkVector = new THREE.Vector3();
+const previousControlsTarget = new THREE.Vector3();
+const controlsTargetDelta = new THREE.Vector3();
 const earthWorldPosition = new THREE.Vector3();
 
 const asteroidEntries = createAsteroidEntries(asteroidCatalog);
@@ -743,8 +745,16 @@ function animate() {
 
   if (selectedAsteroidEntry && selectedAsteroidEntry.mesh) {
     selectedAsteroidEntry.mesh.getWorldPosition(asteroidFocusPoint);
-    if (!isManualOrbiting || isMovingTowardsAsteroid) {
-      controls.target.lerp(asteroidFocusPoint, 0.15);
+
+    previousControlsTarget.copy(controls.target);
+    controls.target.lerp(asteroidFocusPoint, 0.15);
+
+    if (isMovingTowardsAsteroid) {
+      asteroidCameraTarget.copy(asteroidFocusPoint).add(asteroidDefaultCameraOffset);
+    } else if (isManualOrbiting) {
+      controlsTargetDelta.subVectors(controls.target, previousControlsTarget);
+      camera.position.add(controlsTargetDelta);
+    } else {
       asteroidCameraTarget.copy(asteroidFocusPoint).add(asteroidDefaultCameraOffset);
       camera.position.lerp(asteroidCameraTarget, 0.02);
     }
