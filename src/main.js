@@ -126,6 +126,11 @@ function setActiveViewTarget(id) {
   });
 }
 
+const MIN_CAMERA_DISTANCE = 0.75;
+const MIN_CAMERA_PADDING_FACTOR = 1.6;
+const MAX_CAMERA_DISTANCE_FLOOR = 350;
+const MAX_CAMERA_DISTANCE_FACTOR = 15;
+
 function setCameraZoomLimitsForObject(object, fallbackRadius = 8) {
   let radius = fallbackRadius;
 
@@ -133,12 +138,18 @@ function setCameraZoomLimitsForObject(object, fallbackRadius = 8) {
     targetBoundingBox.setFromObject(object);
     if (!targetBoundingBox.isEmpty()) {
       targetBoundingBox.getBoundingSphere(targetBoundingSphere);
-      radius = Math.max(targetBoundingSphere.radius, fallbackRadius);
+      const computedRadius = targetBoundingSphere.radius;
+      if (computedRadius > 0) {
+        radius = computedRadius;
+      }
     }
   }
 
-  controls.minDistance = Math.max(radius * 1.6, 2.5);
-  controls.maxDistance = Math.max(radius * 15, 350);
+  const minDistance = Math.max(radius * MIN_CAMERA_PADDING_FACTOR, MIN_CAMERA_DISTANCE);
+  const maxDistance = Math.max(radius * MAX_CAMERA_DISTANCE_FACTOR, MAX_CAMERA_DISTANCE_FLOOR);
+
+  controls.minDistance = minDistance;
+  controls.maxDistance = Math.max(maxDistance, minDistance * 1.2);
 }
 
 if (viewTargetListElement) {
