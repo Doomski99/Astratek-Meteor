@@ -743,9 +743,8 @@ function animate() {
 
   if (selectedAsteroidEntry && selectedAsteroidEntry.mesh) {
     selectedAsteroidEntry.mesh.getWorldPosition(asteroidFocusPoint);
-    controls.target.lerp(asteroidFocusPoint, 0.15);
-
     if (!isManualOrbiting || isMovingTowardsAsteroid) {
+      controls.target.lerp(asteroidFocusPoint, 0.15);
       asteroidCameraTarget.copy(asteroidFocusPoint).add(asteroidDefaultCameraOffset);
       camera.position.lerp(asteroidCameraTarget, 0.02);
     }
