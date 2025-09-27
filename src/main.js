@@ -86,6 +86,9 @@ let isUserOrbitControlsActive = false;
 controls.addEventListener('start', () => {
   isManualOrbiting = true;
   isUserOrbitControlsActive = true;
+  isMovingTowardsAsteroid = false;
+  isMovingTowardsPlanet = false;
+  isZoomingOut = false;
 });
 
 controls.addEventListener('end', () => {
