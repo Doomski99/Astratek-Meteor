@@ -126,8 +126,8 @@ function setActiveViewTarget(id) {
   });
 }
 
-const MIN_CAMERA_DISTANCE = 0.75;
-const MIN_CAMERA_DISTANCE_FLOOR = 0.2;
+const MIN_CAMERA_DISTANCE = 0.2;
+const MIN_CAMERA_DISTANCE_FLOOR = 0.1;
 const MIN_CAMERA_PADDING_FACTOR = 1.6;
 const SMALL_OBJECT_PADDING_FACTOR = 1.1;
 const SMALL_OBJECT_RADIUS_THRESHOLD = 2;
@@ -338,8 +338,8 @@ const asteroidYieldRadiusScale = {
 const defaultAsteroidCameraOffset = new THREE.Vector3(25, 15, 25);
 const asteroidCameraOffsetDirection = defaultAsteroidCameraOffset.clone().normalize();
 const ASTEROID_CAMERA_OFFSET_RADIUS_MULTIPLIER = 4;
-const ASTEROID_CAMERA_OFFSET_MIN = 1.5;
-const ASTEROID_CAMERA_OFFSET_MIN_MULTIPLIER = 2;
+const ASTEROID_CAMERA_OFFSET_MIN = 0.6;
+const ASTEROID_CAMERA_OFFSET_MIN_MULTIPLIER = 1.5;
 
 function computeAsteroidCameraOffset(entry) {
   if (!entry?.mesh) {
@@ -756,19 +756,18 @@ function clearAsteroidSelection({ keepCamera = false, keepViewTarget = false } =
   removeImpactOverlay();
 
   const previousEntry = selectedAsteroidEntry;
-  if (previousEntry.mesh) {
-    if (asteroidMeshManager) {
-      asteroidMeshManager.removeMesh(previousEntry);
-    } else {
-      disposeObject(previousEntry.mesh);
-      previousEntry.mesh = null;
-    }
-  }
-
   previousEntry.cameraOffset = null;
 
   selectedAsteroidEntry = null;
   isMovingTowardsAsteroid = false;
+
+  getAsteroidMeshManager()
+    .then(manager => {
+      manager.removeMesh(previousEntry);
+    })
+    .catch(error => {
+      console.error('Failed to remove asteroid mesh', error);
+    });
 
   if (!keepViewTarget) {
     setActiveViewTarget('earth');
