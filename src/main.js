@@ -403,17 +403,6 @@ async function getAsteroidMeshManager() {
   return asteroidMeshManager;
 }
 
-asteroidMeshManagerPromise
-  .then(manager => {
-    asteroidEntries.forEach(entry => {
-      manager.ensureMesh(entry, getCurrentSimulationTiming());
-    });
-    return manager;
-  })
-  .catch(error => {
-    console.error('Failed to preload asteroid meshes', error);
-  });
-
 let selectedAsteroidEntry = null;
 let hoveredAsteroidEntry = null;
 let asteroidTrajectoryLine = null;
@@ -771,6 +760,14 @@ function clearAsteroidSelection({ keepCamera = false, keepViewTarget = false } =
 
   selectedAsteroidEntry = null;
   isMovingTowardsAsteroid = false;
+
+  getAsteroidMeshManager()
+    .then(manager => {
+      manager.removeMesh(previousEntry);
+    })
+    .catch(error => {
+      console.error('Failed to remove asteroid mesh', error);
+    });
 
   if (!keepViewTarget) {
     setActiveViewTarget('earth');
