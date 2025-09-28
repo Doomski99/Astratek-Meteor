@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
+const asteroidPackUrl = new URL('../asteroids/asteroidPack.glb', import.meta.url).href;
+
 const ASTEROID_SCALE_MULTIPLIER = 6;
 
 function getYieldBand(tntMt) {
@@ -112,7 +114,7 @@ function findAsteroidEntryFromObject(entries, object) {
 async function createAsteroidMeshManager({
   scene,
   getCurrentTiming,
-  gltfPath = '/asteroids/asteroidPack.glb'
+  gltfPath = asteroidPackUrl
 }) {
   const loader = new GLTFLoader();
 
