@@ -3,7 +3,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 const asteroidPackUrl = new URL('../asteroids/asteroidPack.glb', import.meta.url).href;
 
-const ASTEROID_SCALE_MULTIPLIER = 6;
+const ASTEROID_SCALE_MULTIPLIER = 15;
 
 function getYieldBand(tntMt) {
   if (tntMt <= 1) {
