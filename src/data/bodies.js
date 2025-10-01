@@ -1,62 +1,186 @@
 import * as THREE from 'three';
 import { createKeplerElements } from '../simulation/kepler.js';
 
-const asteroidCatalog = [
-  {
-    id: 'apophis',
-    name: '99942 Apophis',
-    designation: 'Apophis',
-    tntYieldMt: 800,
-    orbit: {
-      semiMajorAxis: 150,
-      eccentricity: 0.191,
-      inclination: 3.331,
-      longitudeOfAscendingNode: 204.0,
-      argumentOfPeriapsis: 126.4,
-      meanAnomalyAtEpoch: 0,
-      period: 50000
-    },
-    spinRate: 0.0015,
-    visualScale: 0.02,
-    description: 'Potentially hazardous Aten asteroid with a close 2029 approach.'
-  },
-  {
-    id: 'bennu',
-    name: '101955 Bennu',
-    designation: 'Bennu',
-    tntYieldMt: 4.5,
-    orbit: {
-      semiMajorAxis: 120,
-      eccentricity: 0.203,
-      inclination: 6.034,
-      longitudeOfAscendingNode: 2.06,
-      argumentOfPeriapsis: 66.2,
-      meanAnomalyAtEpoch: 45,
-      period: 70000
-    },
-    spinRate: 0.0018,
-    visualScale: 0.024,
-    description: 'Carbonaceous near-Earth asteroid sampled by OSIRIS-REx.'
-  },
-  {
-    id: 'didymos',
-    name: '65803 Didymos',
-    designation: 'Didymos',
-    tntYieldMt: 15.0,
-    orbit: {
-      semiMajorAxis: 180,
-      eccentricity: 0.083,
-      inclination: 3.408,
-      longitudeOfAscendingNode: 73.2,
-      argumentOfPeriapsis: 319.7,
-      meanAnomalyAtEpoch: 120,
-      period: 90000
-    },
-    spinRate: 0.0012,
-    visualScale: 0.03,
-    description: 'Binary system primary targeted by the DART mission.'
+const AU_TO_SCENE_UNITS = 90;
+const FRAMES_PER_SECOND = 60;
+const FRAMES_PER_DAY = FRAMES_PER_SECOND * 60 * 60 * 24;
+const DEG_TO_RAD = Math.PI / 180;
+const DEFAULT_VISUAL_SCALE = 0.02;
+const DEFAULT_TNT_YIELD_MT = 0;
+
+function parseCsv(text) {
+  const source = typeof text === 'string' ? text : '';
+  const input = source.charCodeAt(0) === 0xfeff ? source.slice(1) : source;
+  const rows = [];
+  let current = '';
+  let inQuotes = false;
+  let row = [];
+
+  for (let i = 0; i < input.length; i += 1) {
+    const char = input[i];
+
+    if (inQuotes) {
+      if (char === '"') {
+        const nextChar = input[i + 1];
+        if (nextChar === '"') {
+          current += '"';
+          i += 1;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        current += char;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      inQuotes = true;
+      continue;
+    }
+
+    if (char === ',') {
+      row.push(current);
+      current = '';
+      continue;
+    }
+
+    if (char === '\r') {
+      continue;
+    }
+
+    if (char === '\n') {
+      row.push(current);
+      if (row.some(field => field.trim() !== '')) {
+        rows.push(row);
+      }
+      row = [];
+      current = '';
+      continue;
+    }
+
+    current += char;
   }
-];
+
+  if (current !== '' || row.length > 0) {
+    row.push(current);
+    if (row.some(field => field.trim() !== '')) {
+      rows.push(row);
+    }
+  }
+
+  return rows;
+}
+
+function parseNumber(value) {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const parsed = Number.parseFloat(value.trim());
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function convertMeanMotion(degPerDay) {
+  if (!Number.isFinite(degPerDay)) {
+    return 0;
+  }
+
+  return (degPerDay * DEG_TO_RAD) / FRAMES_PER_DAY;
+}
+
+function transformAsteroidRow(row, rowIndex) {
+  if (!Array.isArray(row)) {
+    return null;
+  }
+
+  const [
+    idValue,
+    nameValue,
+    eccentricityValue,
+    semiMajorAxisValue,
+    inclinationValue,
+    ascendingNodeValue,
+    argumentValue,
+    meanAnomalyValue,
+    meanMotionValue
+  ] = row;
+
+  const id = (idValue ?? '').toString().trim();
+  if (!id) {
+    console.warn(`Skipping asteroid row ${rowIndex}: missing id`);
+    return null;
+  }
+
+  const semiMajorAxisAu = parseNumber(semiMajorAxisValue);
+  const eccentricity = parseNumber(eccentricityValue);
+  const inclination = parseNumber(inclinationValue);
+  const ascendingNode = parseNumber(ascendingNodeValue);
+  const argumentOfPeriapsis = parseNumber(argumentValue);
+  const meanAnomalyAtEpoch = parseNumber(meanAnomalyValue);
+  const meanMotionDegPerDay = parseNumber(meanMotionValue);
+
+  if (
+    !Number.isFinite(semiMajorAxisAu) ||
+    !Number.isFinite(eccentricity) ||
+    !Number.isFinite(inclination) ||
+    !Number.isFinite(ascendingNode) ||
+    !Number.isFinite(argumentOfPeriapsis) ||
+    !Number.isFinite(meanAnomalyAtEpoch)
+  ) {
+    console.warn(`Skipping asteroid row ${rowIndex}: missing orbital parameters`);
+    return null;
+  }
+
+  const semiMajorAxis = semiMajorAxisAu * AU_TO_SCENE_UNITS;
+  const orbit = {
+    semiMajorAxis,
+    eccentricity,
+    inclination,
+    longitudeOfAscendingNode: ascendingNode,
+    argumentOfPeriapsis,
+    meanAnomalyAtEpoch,
+    meanMotion: convertMeanMotion(meanMotionDegPerDay ?? 0)
+  };
+
+  return {
+    id,
+    name: (nameValue ?? '').toString().trim() || id,
+    tntYieldMt: DEFAULT_TNT_YIELD_MT,
+    visualScale: DEFAULT_VISUAL_SCALE,
+    orbit
+  };
+}
+
+async function loadAsteroidCatalog(url = '/data/asteroids.csv') {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch ${url}: ${response.status} ${response.statusText}`);
+    }
+
+    const csvText = await response.text();
+    const rows = parseCsv(csvText);
+    const asteroids = [];
+
+    rows.forEach((row, index) => {
+      const headerCandidate = row[0]?.trim().toLowerCase();
+      if (index === 0 && (headerCandidate === 'id' || headerCandidate === '#')) {
+        return;
+      }
+
+      const transformed = transformAsteroidRow(row, index + 1);
+      if (transformed) {
+        asteroids.push(transformed);
+      }
+    });
+
+    return asteroids;
+  } catch (error) {
+    console.error('Unable to load asteroid catalog:', error);
+    return [];
+  }
+}
 
 const planetData = {
   Mercury: {
@@ -259,7 +383,7 @@ function createPlanetFactory({ scene, textureLoader }) {
   };
 }
 
-function createAsteroidEntries(catalog = asteroidCatalog) {
+function createAsteroidEntries(catalog = []) {
   return catalog.map((data, index) => ({
     data,
     mesh: null,
@@ -268,4 +392,4 @@ function createAsteroidEntries(catalog = asteroidCatalog) {
   }));
 }
 
-export { asteroidCatalog, planetData, createPlanetFactory, createAsteroidEntries };
+export { loadAsteroidCatalog, planetData, createPlanetFactory, createAsteroidEntries };

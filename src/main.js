@@ -33,7 +33,7 @@ import plutoTexture from '/images/plutomap.jpg';
 
 import { scene, camera, renderer, controls, composer, outlinePass } from './core/scene.js';
 import { createSimulationClock } from './core/time.js';
-import { createPlanetFactory, planetData, createAsteroidEntries, asteroidCatalog } from './data/bodies.js';
+import { createPlanetFactory, planetData, createAsteroidEntries, loadAsteroidCatalog } from './data/bodies.js';
 import { initAsteroidPanel } from './ui/asteroidPanel.js';
 import { initTimeControls } from './ui/timeControls.js';
 import {
@@ -424,14 +424,10 @@ const previousControlsTarget = new THREE.Vector3();
 const controlsTargetDelta = new THREE.Vector3();
 const earthWorldPosition = new THREE.Vector3();
 
-const asteroidEntries = createAsteroidEntries(asteroidCatalog);
-const asteroidEntryMap = new Map(asteroidEntries.map(entry => [entry.data.id, entry]));
+const asteroidEntries = [];
+const asteroidEntryMap = new Map();
 const activeAsteroidIds = new Set();
-const asteroidPanel = initAsteroidPanel(asteroidEntries, {
-  onToggle: (id, shouldActivate) => {
-    handleAsteroidToggle(id, shouldActivate);
-  }
-});
+let asteroidPanel = null;
 
 function getCurrentSimulationTiming() {
   return {
@@ -736,7 +732,7 @@ function focusCameraOnPlanet(planet) {
 function setHoveredAsteroidEntry(entry) {
   hoveredAsteroidEntry = entry;
   const hoveredId = hoveredAsteroidEntry ? hoveredAsteroidEntry.data.id : null;
-  asteroidPanel.setHovered(hoveredId);
+  asteroidPanel?.setHovered(hoveredId);
 }
 
 function getEarthPosition(target = earthWorldPosition) {
@@ -856,7 +852,7 @@ function focusCameraOnAsteroid(entry) {
 }
 
 function clearAsteroidFocus() {
-  asteroidPanel.clearFocus();
+  asteroidPanel?.clearFocus();
   removeImpactOverlay();
 
   if (!focusedAsteroidEntry) {
@@ -870,7 +866,7 @@ function clearAsteroidFocus() {
 
 async function activateAsteroid(entry) {
   const id = entry.data.id;
-  asteroidPanel.setTracked(id, true);
+  asteroidPanel?.setTracked(id, true);
   addAsteroidViewTarget(entry);
 
   if (activeAsteroidIds.has(id) && entry.mesh) {
@@ -893,7 +889,7 @@ async function activateAsteroid(entry) {
   } catch (error) {
     console.error('Failed to activate asteroid mesh', error);
     activeAsteroidIds.delete(id);
-    asteroidPanel.setTracked(id, false);
+    asteroidPanel?.setTracked(id, false);
     removeAsteroidViewTarget(entry);
     return false;
   }
@@ -901,7 +897,7 @@ async function activateAsteroid(entry) {
 
 async function deactivateAsteroid(entry) {
   const id = entry.data.id;
-  asteroidPanel.setTracked(id, false);
+  asteroidPanel?.setTracked(id, false);
   removeAsteroidViewTarget(entry);
   const wasActive = activeAsteroidIds.delete(id);
 
@@ -946,7 +942,7 @@ function focusAsteroidEntry(entry) {
   clearAsteroidFocus();
   focusedAsteroidEntry = entry;
   activeAsteroidIds.add(entry.data.id);
-  asteroidPanel.setFocused(entry.data.id);
+  asteroidPanel?.setFocused(entry.data.id);
   setActiveViewTarget(getAsteroidViewTargetId(entry.data.id));
   ensureAsteroidTrajectory(entry);
   focusCameraOnAsteroid(entry);
@@ -985,6 +981,38 @@ function focusEarthView() {
   isMovingTowardsAsteroid = false;
   isMovingTowardsPlanet = false;
   isZoomingOut = true;
+}
+
+let asteroidInitializationPromise = null;
+
+async function initializeAsteroids() {
+  if (!asteroidInitializationPromise) {
+    asteroidInitializationPromise = (async () => {
+      const catalog = await loadAsteroidCatalog();
+      const entries = createAsteroidEntries(catalog);
+
+      asteroidEntries.splice(0, asteroidEntries.length, ...entries);
+      asteroidEntryMap.clear();
+      asteroidEntries.forEach(entry => {
+        asteroidEntryMap.set(entry.data.id, entry);
+      });
+
+      activeAsteroidIds.clear();
+      hoveredAsteroidEntry = null;
+      focusedAsteroidEntry = null;
+
+      asteroidPanel = initAsteroidPanel(asteroidEntries, {
+        onToggle: (id, shouldActivate) => {
+          handleAsteroidToggle(id, shouldActivate);
+        }
+      });
+
+      clearAsteroidFocus();
+      setHoveredAsteroidEntry(null);
+    })();
+  }
+
+  return asteroidInitializationPromise;
 }
 
 function updateHoveredAsteroid() {
@@ -1190,6 +1218,10 @@ function animate(now = performance.now()) {
   requestAnimationFrame(animate);
   composer.render();
 }
+
+initializeAsteroids().catch(error => {
+  console.error('Failed to initialize asteroids', error);
+});
 
 window.addEventListener('mousemove', onMouseMove, false);
 window.addEventListener('resize', () => {

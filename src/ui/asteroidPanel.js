@@ -19,12 +19,23 @@ function initAsteroidPanel(entries, { onToggle } = {}) {
 
     entries.forEach(entry => {
       const { data } = entry;
+      const orbit = data.orbit ?? {};
+      const yieldText = Number.isFinite(data.tntYieldMt) ? data.tntYieldMt : 'N/A';
+      const semiMajorAxisText = Number.isFinite(orbit.semiMajorAxis)
+        ? orbit.semiMajorAxis.toFixed(1)
+        : 'N/A';
+      const eccentricityText = Number.isFinite(orbit.eccentricity)
+        ? orbit.eccentricity.toFixed(3)
+        : 'N/A';
+      const inclinationText = Number.isFinite(orbit.inclination)
+        ? orbit.inclination.toFixed(2)
+        : 'N/A';
       const item = document.createElement('li');
       item.className = 'asteroid-panel__item';
       item.dataset.asteroidId = data.id;
       item.innerHTML =
         `<span class='asteroid-panel__name'>${data.name}</span>` +
-        `<span class='asteroid-panel__meta'>Yield: ${data.tntYieldMt} Mt | a=${data.orbit.semiMajorAxis} | e=${data.orbit.eccentricity} | i=${data.orbit.inclination}°</span>`;
+        `<span class='asteroid-panel__meta'>Yield: ${yieldText} Mt | a=${semiMajorAxisText} | e=${eccentricityText} | i=${inclinationText}°</span>`;
       item.addEventListener('click', () => {
         const isActive = activeIds.has(data.id);
         const nextState = !isActive;

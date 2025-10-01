@@ -1,0 +1,4 @@
+id,name,eccentricity,semiMajorAxisAu,inclinationDeg,ascendingNodeDeg,argumentOfPeriapsisDeg,meanAnomalyDeg,meanMotionDegPerDay
+99942,"99942 Apophis",0.191,0.9224,3.331,204.0,126.4,0,1.112
+101955,"101955 Bennu",0.204,1.1264,6.034,2.06,66.2,45,0.825
+65803,"65803 Didymos",0.083,1.644,3.408,73.2,319.7,120,0.467
