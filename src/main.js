@@ -425,6 +425,7 @@ const controlsTargetDelta = new THREE.Vector3();
 const earthWorldPosition = new THREE.Vector3();
 
 const asteroidEntries = createAsteroidEntries(asteroidCatalog);
+const asteroidEntryMap = new Map(asteroidEntries.map(entry => [entry.data.id, entry]));
 const activeAsteroidIds = new Set();
 const asteroidPanel = initAsteroidPanel(asteroidEntries, {
   onToggle: (id, shouldActivate) => {
@@ -456,7 +457,7 @@ async function getAsteroidMeshManager() {
 
 let focusedAsteroidEntry = null;
 let hoveredAsteroidEntry = null;
-let asteroidTrajectoryLine = null;
+const asteroidTrajectories = new Map();
 let asteroidImpactOverlay = null;
 let isMovingTowardsAsteroid = false;
 
@@ -738,11 +739,76 @@ function setHoveredAsteroidEntry(entry) {
   asteroidPanel.setHovered(hoveredId);
 }
 
-function removeTrajectoryLine() {
-  if (asteroidTrajectoryLine) {
-    disposeObject(asteroidTrajectoryLine);
-    asteroidTrajectoryLine = null;
+function getEarthPosition(target = earthWorldPosition) {
+  if (earth?.planet) {
+    earth.planet.getWorldPosition(target);
+  } else {
+    target.set(0, 0, 0);
   }
+
+  return target;
+}
+
+function ensureAsteroidTrajectory(entry) {
+  if (!entry?.mesh) {
+    return;
+  }
+
+  const points = getTrajectoryPoints(entry, getEarthPosition(), 20);
+  const id = entry.data.id;
+  let trajectory = asteroidTrajectories.get(id);
+
+  if (!trajectory) {
+    trajectory = createTrajectoryLine(points);
+    scene.add(trajectory);
+    asteroidTrajectories.set(id, trajectory);
+  } else {
+    trajectory.geometry.setFromPoints(points);
+    if (trajectory.geometry.attributes.position) {
+      trajectory.geometry.attributes.position.needsUpdate = true;
+    }
+    trajectory.geometry.computeBoundingSphere();
+  }
+}
+
+function removeAsteroidTrajectory(entryOrId) {
+  const id = typeof entryOrId === 'string' ? entryOrId : entryOrId?.data?.id;
+  if (!id) {
+    return;
+  }
+
+  const trajectory = asteroidTrajectories.get(id);
+  if (!trajectory) {
+    return;
+  }
+
+  disposeObject(trajectory);
+  asteroidTrajectories.delete(id);
+}
+
+function updateAsteroidTrajectories() {
+  const earthPosition = getEarthPosition();
+  const idsToRemove = [];
+
+  asteroidTrajectories.forEach((trajectory, asteroidId) => {
+    const entry = asteroidEntryMap.get(asteroidId);
+    if (!entry?.mesh) {
+      disposeObject(trajectory);
+      idsToRemove.push(asteroidId);
+      return;
+    }
+
+    const points = getTrajectoryPoints(entry, earthPosition, 20);
+    trajectory.geometry.setFromPoints(points);
+    if (trajectory.geometry.attributes.position) {
+      trajectory.geometry.attributes.position.needsUpdate = true;
+    }
+    trajectory.geometry.computeBoundingSphere();
+  });
+
+  idsToRemove.forEach(id => {
+    asteroidTrajectories.delete(id);
+  });
 }
 
 function removeImpactOverlay() {
@@ -751,35 +817,6 @@ function removeImpactOverlay() {
   }
   disposeObject(asteroidImpactOverlay);
   asteroidImpactOverlay = null;
-}
-
-function createTrajectoryForEntry(entry) {
-  removeTrajectoryLine();
-  if (!entry.mesh) {
-    return;
-  }
-
-  if (earth?.planet) {
-    earth.planet.getWorldPosition(earthWorldPosition);
-  } else {
-    earthWorldPosition.set(0, 0, 0);
-  }
-  const points = getTrajectoryPoints(entry, earthWorldPosition, 20);
-  asteroidTrajectoryLine = createTrajectoryLine(points);
-  scene.add(asteroidTrajectoryLine);
-}
-
-function updateTrajectoryLine(entry) {
-  if (!asteroidTrajectoryLine) {
-    return;
-  }
-  if (earth?.planet) {
-    earth.planet.getWorldPosition(earthWorldPosition);
-  } else {
-    earthWorldPosition.set(0, 0, 0);
-  }
-  const points = getTrajectoryPoints(entry, earthWorldPosition, 20);
-  asteroidTrajectoryLine.geometry.setFromPoints(points);
 }
 
 function createImpactOverlay(entry) {
@@ -820,7 +857,6 @@ function focusCameraOnAsteroid(entry) {
 
 function clearAsteroidFocus() {
   asteroidPanel.clearFocus();
-  removeTrajectoryLine();
   removeImpactOverlay();
 
   if (!focusedAsteroidEntry) {
@@ -838,11 +874,13 @@ async function activateAsteroid(entry) {
   addAsteroidViewTarget(entry);
 
   if (activeAsteroidIds.has(id) && entry.mesh) {
+    ensureAsteroidTrajectory(entry);
     return true;
   }
 
   if (entry.mesh) {
     activeAsteroidIds.add(id);
+    ensureAsteroidTrajectory(entry);
     return true;
   }
 
@@ -850,6 +888,7 @@ async function activateAsteroid(entry) {
     const meshManager = await getAsteroidMeshManager();
     meshManager.ensureMesh(entry, getCurrentSimulationTiming());
     activeAsteroidIds.add(id);
+    ensureAsteroidTrajectory(entry);
     return true;
   } catch (error) {
     console.error('Failed to activate asteroid mesh', error);
@@ -870,6 +909,8 @@ async function deactivateAsteroid(entry) {
     focusEarthView();
   }
 
+  removeAsteroidTrajectory(entry);
+
   if (!entry.mesh && !wasActive) {
     return;
   }
@@ -885,7 +926,7 @@ async function deactivateAsteroid(entry) {
 }
 
 function handleAsteroidToggle(id, shouldActivate) {
-  const entry = asteroidEntries.find(item => item.data.id === id);
+  const entry = asteroidEntryMap.get(id);
   if (!entry) {
     return;
   }
@@ -907,13 +948,13 @@ function focusAsteroidEntry(entry) {
   activeAsteroidIds.add(entry.data.id);
   asteroidPanel.setFocused(entry.data.id);
   setActiveViewTarget(getAsteroidViewTargetId(entry.data.id));
+  ensureAsteroidTrajectory(entry);
   focusCameraOnAsteroid(entry);
-  createTrajectoryForEntry(entry);
   createImpactOverlay(entry);
 }
 
 async function focusAsteroidById(id) {
-  const entry = asteroidEntries.find(item => item.data.id === id);
+  const entry = asteroidEntryMap.get(id);
   if (!entry) {
     return;
   }
@@ -979,9 +1020,7 @@ function onMouseMove(event) {
 
 function updateAsteroids(timing) {
   asteroidEntries.forEach(entry => updateAsteroidTransform(entry, timing));
-  if (focusedAsteroidEntry && focusedAsteroidEntry.mesh) {
-    updateTrajectoryLine(focusedAsteroidEntry);
-  }
+  updateAsteroidTrajectories();
 }
 
 function animateMoons(timing) {
