@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { propagateKepler } from './kepler.js';
 
 const asteroidPackUrl = new URL('../asteroids/asteroidPack.glb', import.meta.url).href;
 
@@ -22,17 +23,15 @@ function updateAsteroidTransform(entry, timing = { orbitFrames: 0, spinFrames: 0
     return;
   }
 
-  const { semiMajorAxis: a, eccentricity, inclination } = entry.data.orbit;
-  const b = a * Math.sqrt(1 - Math.pow(eccentricity, 2));
   const orbitFrames = timing.orbitFrames ?? 0;
-  const angle = (entry.initialPhase ?? 0) + entry.orbitAngularVelocity * orbitFrames;
+  const keplerElements = entry.keplerElements;
 
-  const x = a * Math.cos(angle);
-  const z = b * Math.sin(angle);
-  const inclineRad = THREE.MathUtils.degToRad(inclination);
-  const y = Math.sin(angle) * Math.sin(inclineRad) * a * 0.2;
-
-  entry.mesh.position.set(x, y, z);
+  if (!keplerElements) {
+    entry.mesh.position.set(0, 0, 0);
+  } else {
+    const { position } = propagateKepler(keplerElements, orbitFrames);
+    entry.mesh.position.set(position.x, position.y, position.z);
+  }
 
   const spinRate = entry.data.spinRate ?? 0.001;
   const baseRotation = entry.baseRotationY ?? entry.mesh.rotation.y;

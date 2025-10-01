@@ -23,7 +23,7 @@ function initAsteroidPanel(entries, { onSelect } = {}) {
       item.dataset.asteroidId = data.id;
       item.innerHTML =
         `<span class='asteroid-panel__name'>${data.name}</span>` +
-        `<span class='asteroid-panel__meta'>Yield: ${data.tntYieldMt} Mt | a=${data.orbit.semiMajorAxis} | i=${data.orbit.inclination} deg</span>`;
+        `<span class='asteroid-panel__meta'>Yield: ${data.tntYieldMt} Mt | a=${data.orbit.semiMajorAxis} | e=${data.orbit.eccentricity} | i=${data.orbit.inclination}°</span>`;
 
       item.addEventListener('click', () => {
         if (typeof onSelect === 'function') {

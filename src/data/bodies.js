@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { createKeplerElements } from '../simulation/kepler.js';
 
 const asteroidCatalog = [
   {
@@ -6,7 +7,15 @@ const asteroidCatalog = [
     name: '99942 Apophis',
     designation: 'Apophis',
     tntYieldMt: 800,
-    orbit: { semiMajorAxis: 150, eccentricity: 0.12, inclination: 6, angularVelocity: 0.00012 },
+    orbit: {
+      semiMajorAxis: 150,
+      eccentricity: 0.191,
+      inclination: 3.331,
+      longitudeOfAscendingNode: 204.0,
+      argumentOfPeriapsis: 126.4,
+      meanAnomalyAtEpoch: 0,
+      period: 50000
+    },
     spinRate: 0.0015,
     visualScale: 0.02,
     description: 'Potentially hazardous Aten asteroid with a close 2029 approach.'
@@ -16,7 +25,15 @@ const asteroidCatalog = [
     name: '101955 Bennu',
     designation: 'Bennu',
     tntYieldMt: 4.5,
-    orbit: { semiMajorAxis: 120, eccentricity: 0.21, inclination: 6, angularVelocity: 0.00009 },
+    orbit: {
+      semiMajorAxis: 120,
+      eccentricity: 0.203,
+      inclination: 6.034,
+      longitudeOfAscendingNode: 2.06,
+      argumentOfPeriapsis: 66.2,
+      meanAnomalyAtEpoch: 45,
+      period: 70000
+    },
     spinRate: 0.0018,
     visualScale: 0.024,
     description: 'Carbonaceous near-Earth asteroid sampled by OSIRIS-REx.'
@@ -26,7 +43,15 @@ const asteroidCatalog = [
     name: '65803 Didymos',
     designation: 'Didymos',
     tntYieldMt: 15.0,
-    orbit: { semiMajorAxis: 180, eccentricity: 0.08, inclination: 3, angularVelocity: 0.00007 },
+    orbit: {
+      semiMajorAxis: 180,
+      eccentricity: 0.083,
+      inclination: 3.408,
+      longitudeOfAscendingNode: 73.2,
+      argumentOfPeriapsis: 319.7,
+      meanAnomalyAtEpoch: 120,
+      period: 90000
+    },
     spinRate: 0.0012,
     visualScale: 0.03,
     description: 'Binary system primary targeted by the DART mission.'
@@ -238,8 +263,7 @@ function createAsteroidEntries(catalog = asteroidCatalog) {
   return catalog.map((data, index) => ({
     data,
     mesh: null,
-    initialPhase: data.initialPhase ?? index * 1.3,
-    orbitAngularVelocity: data.orbit.angularVelocity,
+    keplerElements: createKeplerElements(data.orbit),
     templateIndex: index
   }));
 }
