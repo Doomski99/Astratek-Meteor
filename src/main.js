@@ -114,16 +114,65 @@ controls.addEventListener('end', () => {
 });
 
 const viewTargetListElement = document.getElementById('viewTargetList');
+const viewTargetItems = new Map();
+let activeViewTargetId = null;
+
+if (viewTargetListElement) {
+  const items = viewTargetListElement.querySelectorAll('[data-target-id]');
+  items.forEach(item => {
+    const targetId = item.dataset.targetId;
+    viewTargetItems.set(targetId, item);
+    if (item.classList.contains('view-panel__item--active')) {
+      activeViewTargetId = targetId;
+    }
+  });
+}
 
 function setActiveViewTarget(id) {
+  activeViewTargetId = id ?? null;
+
   if (!viewTargetListElement) {
     return;
   }
 
   const items = viewTargetListElement.querySelectorAll('[data-target-id]');
   items.forEach(item => {
-    item.classList.toggle('view-panel__item--active', item.dataset.targetId === id);
+    item.classList.toggle('view-panel__item--active', item.dataset.targetId === activeViewTargetId);
   });
+}
+
+function getAsteroidViewTargetId(asteroidId) {
+  return `asteroid:${asteroidId}`;
+}
+
+function addAsteroidViewTarget(entry) {
+  if (!viewTargetListElement) {
+    return;
+  }
+
+  const targetId = getAsteroidViewTargetId(entry.data.id);
+  if (viewTargetItems.has(targetId)) {
+    return;
+  }
+
+  const item = document.createElement('li');
+  item.className = 'view-panel__item';
+  item.dataset.targetId = targetId;
+  item.textContent = entry.data.name ?? entry.data.id;
+
+  viewTargetListElement.appendChild(item);
+  viewTargetItems.set(targetId, item);
+}
+
+function removeAsteroidViewTarget(entry) {
+  const targetId = getAsteroidViewTargetId(entry.data.id);
+  const item = viewTargetItems.get(targetId);
+
+  if (item?.parentElement) {
+    item.parentElement.removeChild(item);
+  }
+
+  viewTargetItems.delete(targetId);
 }
 
 const MIN_CAMERA_DISTANCE = 0.2;
@@ -170,7 +219,7 @@ function setCameraZoomLimitsForObject(object, fallbackRadius = 8) {
 }
 
 if (viewTargetListElement) {
-  viewTargetListElement.addEventListener('click', event => {
+  viewTargetListElement.addEventListener('click', async event => {
     const item = event.target.closest('[data-target-id]');
     if (!item) {
       return;
@@ -178,14 +227,13 @@ if (viewTargetListElement) {
 
     const { targetId } = item.dataset;
     if (targetId === 'earth') {
-      setActiveViewTarget('earth');
-      const earthTarget = typeof earth !== 'undefined' ? earth.planet : null;
-      setCameraZoomLimitsForObject(earthTarget, 6.4);
-      updateEarthDefaultView(true);
-      isManualOrbiting = false;
-      isMovingTowardsAsteroid = false;
-      isMovingTowardsPlanet = false;
-      isZoomingOut = true;
+      focusEarthView();
+      return;
+    }
+
+    if (targetId?.startsWith('asteroid:')) {
+      const asteroidId = targetId.split(':')[1];
+      await focusAsteroidById(asteroidId);
     }
   });
 }
@@ -377,8 +425,11 @@ const controlsTargetDelta = new THREE.Vector3();
 const earthWorldPosition = new THREE.Vector3();
 
 const asteroidEntries = createAsteroidEntries(asteroidCatalog);
+const activeAsteroidIds = new Set();
 const asteroidPanel = initAsteroidPanel(asteroidEntries, {
-  onSelect: id => handleAsteroidSelection(id)
+  onToggle: (id, shouldActivate) => {
+    handleAsteroidToggle(id, shouldActivate);
+  }
 });
 
 function getCurrentSimulationTiming() {
@@ -403,7 +454,7 @@ async function getAsteroidMeshManager() {
   return asteroidMeshManager;
 }
 
-let selectedAsteroidEntry = null;
+let focusedAsteroidEntry = null;
 let hoveredAsteroidEntry = null;
 let asteroidTrajectoryLine = null;
 let asteroidImpactOverlay = null;
@@ -746,43 +797,6 @@ function createImpactOverlay(entry) {
   }
 }
 
-function clearAsteroidSelection({ keepCamera = false, keepViewTarget = false } = {}) {
-  if (!selectedAsteroidEntry) {
-    return;
-  }
-
-  asteroidPanel.clearSelection();
-  removeTrajectoryLine();
-  removeImpactOverlay();
-
-  const previousEntry = selectedAsteroidEntry;
-  previousEntry.cameraOffset = null;
-
-  selectedAsteroidEntry = null;
-  isMovingTowardsAsteroid = false;
-
-  getAsteroidMeshManager()
-    .then(manager => {
-      manager.removeMesh(previousEntry);
-    })
-    .catch(error => {
-      console.error('Failed to remove asteroid mesh', error);
-    });
-
-  if (!keepViewTarget) {
-    setActiveViewTarget('earth');
-  }
-
-  if (!keepCamera) {
-    const earthTarget = typeof earth !== 'undefined' ? earth.planet : null;
-    setCameraZoomLimitsForObject(earthTarget, 6.4);
-    updateEarthDefaultView();
-    controls.target.copy(earthDefaultTargetPosition);
-    isManualOrbiting = false;
-    isZoomingOut = true;
-  }
-}
-
 function focusCameraOnAsteroid(entry) {
   closeInfoNoZoomOut();
   selectedPlanet = null;
@@ -804,31 +818,132 @@ function focusCameraOnAsteroid(entry) {
   isMovingTowardsAsteroid = true;
 }
 
-async function handleAsteroidSelection(id) {
+function clearAsteroidFocus() {
+  asteroidPanel.clearFocus();
+  removeTrajectoryLine();
+  removeImpactOverlay();
+
+  if (!focusedAsteroidEntry) {
+    return;
+  }
+
+  focusedAsteroidEntry.cameraOffset = null;
+  focusedAsteroidEntry = null;
+  isMovingTowardsAsteroid = false;
+}
+
+async function activateAsteroid(entry) {
+  const id = entry.data.id;
+  asteroidPanel.setTracked(id, true);
+  addAsteroidViewTarget(entry);
+
+  if (activeAsteroidIds.has(id) && entry.mesh) {
+    return true;
+  }
+
+  if (entry.mesh) {
+    activeAsteroidIds.add(id);
+    return true;
+  }
+
+  try {
+    const meshManager = await getAsteroidMeshManager();
+    meshManager.ensureMesh(entry, getCurrentSimulationTiming());
+    activeAsteroidIds.add(id);
+    return true;
+  } catch (error) {
+    console.error('Failed to activate asteroid mesh', error);
+    activeAsteroidIds.delete(id);
+    asteroidPanel.setTracked(id, false);
+    removeAsteroidViewTarget(entry);
+    return false;
+  }
+}
+
+async function deactivateAsteroid(entry) {
+  const id = entry.data.id;
+  asteroidPanel.setTracked(id, false);
+  removeAsteroidViewTarget(entry);
+  const wasActive = activeAsteroidIds.delete(id);
+
+  if (focusedAsteroidEntry && focusedAsteroidEntry.data.id === id) {
+    focusEarthView();
+  }
+
+  if (!entry.mesh && !wasActive) {
+    return;
+  }
+
+  try {
+    const meshManager = await getAsteroidMeshManager();
+    meshManager.removeMesh(entry);
+  } catch (error) {
+    console.error('Failed to remove asteroid mesh', error);
+  }
+
+  entry.cameraOffset = null;
+}
+
+function handleAsteroidToggle(id, shouldActivate) {
   const entry = asteroidEntries.find(item => item.data.id === id);
   if (!entry) {
     return;
   }
 
-  const meshManager = await getAsteroidMeshManager();
-
-  if (selectedAsteroidEntry && selectedAsteroidEntry.data.id === id) {
-    clearAsteroidSelection();
-    return;
+  if (shouldActivate) {
+    activateAsteroid(entry).catch(error => {
+      console.error('Unable to activate asteroid', error);
+    });
+  } else {
+    deactivateAsteroid(entry).catch(error => {
+      console.error('Unable to deactivate asteroid', error);
+    });
   }
+}
 
-  if (selectedAsteroidEntry) {
-    clearAsteroidSelection({ keepCamera: true, keepViewTarget: true });
-  }
-
-  meshManager.ensureMesh(entry, getCurrentSimulationTiming());
-
-  selectedAsteroidEntry = entry;
-  setActiveViewTarget(null);
-  asteroidPanel.setSelected(entry.data.id);
+function focusAsteroidEntry(entry) {
+  clearAsteroidFocus();
+  focusedAsteroidEntry = entry;
+  activeAsteroidIds.add(entry.data.id);
+  asteroidPanel.setFocused(entry.data.id);
+  setActiveViewTarget(getAsteroidViewTargetId(entry.data.id));
   focusCameraOnAsteroid(entry);
   createTrajectoryForEntry(entry);
   createImpactOverlay(entry);
+}
+
+async function focusAsteroidById(id) {
+  const entry = asteroidEntries.find(item => item.data.id === id);
+  if (!entry) {
+    return;
+  }
+
+  try {
+    const meshManager = await getAsteroidMeshManager();
+    meshManager.ensureMesh(entry, getCurrentSimulationTiming());
+    activeAsteroidIds.add(id);
+  } catch (error) {
+    console.error('Failed to prepare asteroid for focus', error);
+    return;
+  }
+
+  if (!entry.mesh) {
+    return;
+  }
+
+  focusAsteroidEntry(entry);
+}
+
+function focusEarthView() {
+  clearAsteroidFocus();
+  setActiveViewTarget('earth');
+  const earthTarget = typeof earth !== 'undefined' ? earth.planet : null;
+  setCameraZoomLimitsForObject(earthTarget, 6.4);
+  updateEarthDefaultView(true);
+  isManualOrbiting = false;
+  isMovingTowardsAsteroid = false;
+  isMovingTowardsPlanet = false;
+  isZoomingOut = true;
 }
 
 function updateHoveredAsteroid() {
@@ -864,8 +979,8 @@ function onMouseMove(event) {
 
 function updateAsteroids(timing) {
   asteroidEntries.forEach(entry => updateAsteroidTransform(entry, timing));
-  if (selectedAsteroidEntry && selectedAsteroidEntry.mesh) {
-    updateTrajectoryLine(selectedAsteroidEntry);
+  if (focusedAsteroidEntry && focusedAsteroidEntry.mesh) {
+    updateTrajectoryLine(focusedAsteroidEntry);
   }
 }
 
@@ -964,13 +1079,13 @@ function animate(now = performance.now()) {
   updateEarthDefaultView();
   updateAsteroids(timing);
 
-  if (selectedAsteroidEntry && selectedAsteroidEntry.mesh) {
-    selectedAsteroidEntry.mesh.getWorldPosition(asteroidFocusPoint);
+  if (focusedAsteroidEntry && focusedAsteroidEntry.mesh) {
+    focusedAsteroidEntry.mesh.getWorldPosition(asteroidFocusPoint);
 
-    let asteroidCameraOffset = selectedAsteroidEntry.cameraOffset;
+    let asteroidCameraOffset = focusedAsteroidEntry.cameraOffset;
     if (!asteroidCameraOffset) {
-      asteroidCameraOffset = computeAsteroidCameraOffset(selectedAsteroidEntry);
-      selectedAsteroidEntry.cameraOffset = asteroidCameraOffset;
+      asteroidCameraOffset = computeAsteroidCameraOffset(focusedAsteroidEntry);
+      focusedAsteroidEntry.cameraOffset = asteroidCameraOffset;
     }
 
     const shouldUpdateAsteroidTarget = !isUserOrbitControlsActive || isMovingTowardsAsteroid;
@@ -1005,8 +1120,8 @@ function animate(now = performance.now()) {
     }
   }
 
-  if (selectedAsteroidEntry && selectedAsteroidEntry.mesh) {
-    outlinePass.selectedObjects = [selectedAsteroidEntry.mesh];
+  if (focusedAsteroidEntry && focusedAsteroidEntry.mesh) {
+    outlinePass.selectedObjects = [focusedAsteroidEntry.mesh];
   } else {
     outlinePass.selectedObjects = [];
   }
