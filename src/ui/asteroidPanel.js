@@ -1,4 +1,4 @@
-function initAsteroidPanel(entries, { onSelect } = {}) {
+function initAsteroidPanel(entries, { onToggle } = {}) {
   const listElement = document.getElementById('asteroidList');
   const panelElement = document.getElementById('asteroidListPanel');
   const legendElement = document.getElementById('impactLegendOverlay');
@@ -12,6 +12,7 @@ function initAsteroidPanel(entries, { onSelect } = {}) {
   }
 
   const itemMap = new Map();
+  const activeIds = new Set();
 
   if (listElement) {
     listElement.innerHTML = '';
@@ -23,11 +24,12 @@ function initAsteroidPanel(entries, { onSelect } = {}) {
       item.dataset.asteroidId = data.id;
       item.innerHTML =
         `<span class='asteroid-panel__name'>${data.name}</span>` +
-        `<span class='asteroid-panel__meta'>Yield: ${data.tntYieldMt} Mt | a=${data.orbit.semiMajorAxis} | i=${data.orbit.inclination} deg</span>`;
-
+        `<span class='asteroid-panel__meta'>Yield: ${data.tntYieldMt} Mt | a=${data.orbit.semiMajorAxis} | e=${data.orbit.eccentricity} | i=${data.orbit.inclination}°</span>`;
       item.addEventListener('click', () => {
-        if (typeof onSelect === 'function') {
-          onSelect(data.id);
+        const isActive = activeIds.has(data.id);
+        const nextState = !isActive;
+        if (typeof onToggle === 'function') {
+          onToggle(data.id, nextState);
         }
       });
 
@@ -37,7 +39,7 @@ function initAsteroidPanel(entries, { onSelect } = {}) {
   }
 
   let hoveredId = null;
-  let selectedId = null;
+  let focusedId = null;
 
   function setHovered(id) {
     if (hoveredId && itemMap.has(hoveredId)) {
@@ -51,31 +53,48 @@ function initAsteroidPanel(entries, { onSelect } = {}) {
     }
   }
 
-  function setSelected(id) {
-    if (selectedId && itemMap.has(selectedId)) {
-      itemMap.get(selectedId).classList.remove('asteroid-panel__item--active');
-    }
-
-    selectedId = id ?? null;
-
-    if (selectedId && itemMap.has(selectedId)) {
-      itemMap.get(selectedId).classList.add('asteroid-panel__item--active');
-    }
-  }
-
-  function clearSelection() {
-    setSelected(null);
-  }
-
   function getItemElement(id) {
     return itemMap.get(id) ?? null;
+  }
+
+  function setTracked(id, isActive) {
+    if (!itemMap.has(id)) {
+      return;
+    }
+
+    const item = itemMap.get(id);
+
+    if (isActive) {
+      activeIds.add(id);
+      item.classList.add('asteroid-panel__item--active');
+    } else {
+      activeIds.delete(id);
+      item.classList.remove('asteroid-panel__item--active');
+    }
+  }
+
+  function setFocused(id) {
+    if (focusedId && itemMap.has(focusedId)) {
+      itemMap.get(focusedId).classList.remove('asteroid-panel__item--focused');
+    }
+
+    focusedId = id ?? null;
+
+    if (focusedId && itemMap.has(focusedId)) {
+      itemMap.get(focusedId).classList.add('asteroid-panel__item--focused');
+    }
+  }
+
+  function clearFocus() {
+    setFocused(null);
   }
 
   return {
     listElement,
     setHovered,
-    setSelected,
-    clearSelection,
+    setTracked,
+    setFocused,
+    clearFocus,
     getItemElement
   };
 }

@@ -94,6 +94,10 @@ p {
     outline: 1px solid rgba(158, 203, 255, 0.6);
 }
 
+.asteroid-panel__item--focused {
+    box-shadow: 0 0 0 1px rgba(158, 203, 255, 0.9);
+}
+
 .asteroid-panel__name {
     font-size: 14px;
     font-weight: 600;
