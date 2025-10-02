@@ -42,6 +42,7 @@ import {
 import { initAsteroidPanel } from './ui/asteroidPanel.js';
 import { initAsteroidInfoPanel } from './ui/asteroidInfoPanel.js';
 import { initTimeControls } from './ui/timeControls.js';
+import { createImpactTimeWidget } from './ui/impactTimeWidget.js';
 import {
   createAsteroidMeshManager,
   updateAsteroidTransform,
@@ -73,6 +74,10 @@ const textureLoader = new THREE.TextureLoader();
 const FRAMES_PER_SECOND = 60;
 const FRAMES_PER_MILLISECOND = FRAMES_PER_SECOND / 1000;
 const DEFAULT_SIMULATION_DURATION = 60 * 60 * 1000; // 1 hour in milliseconds
+const DEFAULT_ASTEROID_DENSITY_KG_PER_M3 = 3000;
+const DEFAULT_ASTEROID_DIAMETER_METERS = 160;
+const JOULES_PER_MEGATON_TNT = 4.184e15;
+const IMPACT_DURATION_PADDING_MS = 5 * 60 * 1000;
 
 scene.background = cubeTextureLoader.load([
   bgTexture3,
@@ -103,7 +108,11 @@ const earthIntersectionOptions = {
   orbitBSamples: earthOrbitSamplesWithMeta
 };
 
-initTimeControls(simulationClock);
+const timeControls = initTimeControls(simulationClock);
+impactTimeWidget = createImpactTimeWidget({
+  clock: simulationClock,
+  anchorElement: timeControls?.element ?? null
+});
 
 const impactLegendElement = document.getElementById('impactLegendOverlay');
 if (impactLegendElement) {
@@ -454,6 +463,7 @@ const activeAsteroidIds = new Set();
 const planetEntries = [];
 let asteroidPanel = null;
 const asteroidInfoPanel = initAsteroidInfoPanel();
+let impactTimeWidget = null;
 
 function updateAsteroidPanelMetadata(entry) {
   if (!asteroidPanel || !entry?.data?.id) {
@@ -1036,6 +1046,99 @@ function toPlainVector(vector) {
   return { x: vector.x, y: vector.y, z: vector.z };
 }
 
+function getFirstFiniteNumber(...values) {
+  for (const candidate of values) {
+    const number = typeof candidate === 'number' ? candidate : Number(candidate);
+    if (Number.isFinite(number)) {
+      return number;
+    }
+  }
+
+  return null;
+}
+
+function estimateAsteroidMassKg(entry) {
+  const data = entry?.data ?? {};
+  const massCandidates = [data.impactMassKg, data.massKg, data.mass, data.estimatedMassKg];
+
+  for (const candidate of massCandidates) {
+    if (Number.isFinite(candidate) && candidate > 0) {
+      return candidate;
+    }
+  }
+
+  const density =
+    Number.isFinite(data.densityKgPerM3) && data.densityKgPerM3 > 0
+      ? data.densityKgPerM3
+      : DEFAULT_ASTEROID_DENSITY_KG_PER_M3;
+
+  const diameterMeters = getFirstFiniteNumber(
+    data.impactDiameterMeters,
+    data.estimatedDiameterMeters,
+    data.diameterMeters,
+    Number.isFinite(data.estimatedDiameterKm) ? data.estimatedDiameterKm * 1000 : null,
+    Number.isFinite(data.diameterKm) ? data.diameterKm * 1000 : null
+  );
+
+  if (Number.isFinite(diameterMeters) && diameterMeters > 0) {
+    const radius = diameterMeters / 2;
+    const volume = (4 / 3) * Math.PI * radius * radius * radius;
+    return volume * density;
+  }
+
+  const defaultRadius = DEFAULT_ASTEROID_DIAMETER_METERS / 2;
+  const defaultVolume = (4 / 3) * Math.PI * defaultRadius * defaultRadius * defaultRadius;
+  return defaultVolume * density;
+}
+
+function calculateImpactYieldMegatons(entry, impactState) {
+  if (!entry || !impactState) {
+    return null;
+  }
+
+  const speedKilometersPerSecond = Number.isFinite(impactState.relativeSpeedKilometersPerSecond)
+    ? impactState.relativeSpeedKilometersPerSecond
+    : impactState.speedKilometersPerSecond;
+
+  if (!Number.isFinite(speedKilometersPerSecond) || speedKilometersPerSecond <= 0) {
+    return null;
+  }
+
+  const massKg = estimateAsteroidMassKg(entry);
+  if (!Number.isFinite(massKg) || massKg <= 0) {
+    return null;
+  }
+
+  const speedMetersPerSecond = speedKilometersPerSecond * 1000;
+  const kineticEnergyJoules = 0.5 * massKg * speedMetersPerSecond * speedMetersPerSecond;
+  return kineticEnergyJoules / JOULES_PER_MEGATON_TNT;
+}
+
+function updateImpactTimeWidget(entry) {
+  if (!impactTimeWidget) {
+    return;
+  }
+
+  const impactState = entry?.earthOrbitIntersection?.asteroidImpactState ?? null;
+  const hasIntersection = Boolean(entry?.earthOrbitIntersection?.intersects);
+
+  if (!hasIntersection || !impactState) {
+    impactTimeWidget.clear();
+    return;
+  }
+
+  const timestampMs = impactState.timestampMs;
+  if (!Number.isFinite(timestampMs)) {
+    impactTimeWidget.clear();
+    return;
+  }
+
+  impactTimeWidget.setImpactTime({
+    timestampMs,
+    asteroidName: entry?.data?.name ?? entry?.data?.id ?? null
+  });
+}
+
 function applyEarthIntersectionResult(entry, intersection) {
   if (!entry) {
     return {
@@ -1104,6 +1207,37 @@ function applyEarthIntersectionResult(entry, intersection) {
       speedKilometersPerSecond = kilometersPerSecondVector.length();
     }
 
+    let earthOrbitalVelocity = null;
+    let earthKilometersPerSecondVector = null;
+    let earthKilometersPerSecondSceneVector = null;
+
+    if (earthKeplerElements) {
+      const earthVelocityEstimate = estimateOrbitalVelocity(earthKeplerElements, impactOrbitFrames);
+      if (earthVelocityEstimate?.orbital) {
+        earthOrbitalVelocity = earthVelocityEstimate.orbital.clone();
+      }
+      if (earthVelocityEstimate?.kilometersPerSecond) {
+        earthKilometersPerSecondVector = earthVelocityEstimate.kilometersPerSecond.clone();
+        earthKilometersPerSecondSceneVector = orbitVectorToScene(
+          earthKilometersPerSecondVector,
+          new THREE.Vector3()
+        );
+      }
+    }
+
+    let relativeKilometersPerSecondVector = null;
+    let relativeKilometersPerSecondSceneVector = null;
+    let relativeSpeedKilometersPerSecond = null;
+
+    if (kilometersPerSecondVector && earthKilometersPerSecondVector) {
+      relativeKilometersPerSecondVector = kilometersPerSecondVector.clone().sub(earthKilometersPerSecondVector);
+      relativeKilometersPerSecondSceneVector = orbitVectorToScene(
+        relativeKilometersPerSecondVector,
+        new THREE.Vector3()
+      );
+      relativeSpeedKilometersPerSecond = relativeKilometersPerSecondVector.length();
+    }
+
     asteroidImpactState = {
       orbitFrames: impactOrbitFrames,
       simulationSeconds: impactOrbitFrames * SECONDS_PER_FRAME,
@@ -1115,8 +1249,38 @@ function applyEarthIntersectionResult(entry, intersection) {
       sceneVelocity,
       kilometersPerSecond: kilometersPerSecondVector,
       kilometersPerSecondScene: kilometersPerSecondSceneVector,
-      speedKilometersPerSecond
+      speedKilometersPerSecond,
+      earthOrbitalVelocity,
+      earthKilometersPerSecond: earthKilometersPerSecondVector,
+      earthKilometersPerSecondScene: earthKilometersPerSecondSceneVector,
+      relativeKilometersPerSecond: relativeKilometersPerSecondVector,
+      relativeKilometersPerSecondScene: relativeKilometersPerSecondSceneVector,
+      relativeSpeedKilometersPerSecond
     };
+
+    const impactYieldMegatons = calculateImpactYieldMegatons(entry, asteroidImpactState);
+    if (Number.isFinite(impactYieldMegatons) && impactYieldMegatons >= 0) {
+      asteroidImpactState.impactYieldMegatons = impactYieldMegatons;
+      if (!entry.data) {
+        entry.data = {};
+      }
+      entry.data.tntYieldMt = impactYieldMegatons;
+    }
+
+    const impactTimestampMs = asteroidImpactState.timestampMs;
+    if (Number.isFinite(impactTimestampMs)) {
+      const currentDuration = simulationClock.getDuration();
+      const paddedDuration = impactTimestampMs + IMPACT_DURATION_PADDING_MS;
+      if (paddedDuration > currentDuration) {
+        try {
+          simulationClock.setDuration(paddedDuration);
+        } catch (error) {
+          console.warn('Unable to extend simulation duration for impact timestamp', error);
+        }
+      }
+    }
+  } else if (entry?.data) {
+    entry.data.tntYieldMt = 0;
   }
 
   const info = {
@@ -1125,7 +1289,8 @@ function applyEarthIntersectionResult(entry, intersection) {
     thresholdSceneUnits,
     impactPoint: closestPointB,
     impactNormal,
-    asteroidImpactState
+    asteroidImpactState,
+    impactYieldMegatons: asteroidImpactState?.impactYieldMegatons ?? null
   };
 
   entry.earthOrbitIntersection = info;
@@ -1136,6 +1301,7 @@ function applyEarthIntersectionResult(entry, intersection) {
       thresholdSceneUnits: info.thresholdSceneUnits,
       impactPoint: toPlainVector(info.impactPoint),
       impactNormal: toPlainVector(info.impactNormal),
+      impactYieldMegatons: info.impactYieldMegatons,
       asteroidImpactState: asteroidImpactState
         ? {
             orbitFrames: asteroidImpactState.orbitFrames,
@@ -1148,10 +1314,25 @@ function applyEarthIntersectionResult(entry, intersection) {
             sceneVelocity: toPlainVector(asteroidImpactState.sceneVelocity),
             kilometersPerSecond: toPlainVector(asteroidImpactState.kilometersPerSecond),
             kilometersPerSecondScene: toPlainVector(asteroidImpactState.kilometersPerSecondScene),
-            speedKilometersPerSecond: asteroidImpactState.speedKilometersPerSecond
+            speedKilometersPerSecond: asteroidImpactState.speedKilometersPerSecond,
+            earthOrbitalVelocity: toPlainVector(asteroidImpactState.earthOrbitalVelocity),
+            earthKilometersPerSecond: toPlainVector(asteroidImpactState.earthKilometersPerSecond),
+            earthKilometersPerSecondScene: toPlainVector(asteroidImpactState.earthKilometersPerSecondScene),
+            relativeKilometersPerSecond: toPlainVector(asteroidImpactState.relativeKilometersPerSecond),
+            relativeKilometersPerSecondScene: toPlainVector(
+              asteroidImpactState.relativeKilometersPerSecondScene
+            ),
+            relativeSpeedKilometersPerSecond: asteroidImpactState.relativeSpeedKilometersPerSecond,
+            impactYieldMegatons: asteroidImpactState.impactYieldMegatons ?? null
           }
         : null
     };
+  }
+
+  updateAsteroidPanelMetadata(entry);
+
+  if (entry === focusedAsteroidEntry) {
+    updateImpactTimeWidget(entry);
   }
 
   return info;
@@ -1279,6 +1460,7 @@ function clearAsteroidFocus() {
   }
 
   updateCollisionButtonState();
+  updateImpactTimeWidget(null);
 }
 
 async function activateAsteroid(entry) {
