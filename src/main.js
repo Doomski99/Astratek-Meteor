@@ -356,7 +356,7 @@ const sunMat = new THREE.MeshStandardMaterial({
 const sun = new THREE.Mesh(sunGeom, sunMat);
 scene.add(sun);
 
-const pointLight = new THREE.PointLight(0xfdffd3, 1200, 400, 1.4);
+const pointLight = new THREE.PointLight(0xfdffd3, 1200, 0, 0);
 scene.add(pointLight);
 
 function loadObject(path, position, scale, callback) {
