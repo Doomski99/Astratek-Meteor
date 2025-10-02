@@ -54,7 +54,8 @@ import {
   disposeObject
 } from './simulation/asteroids.js';
 import { propagateKepler } from './simulation/kepler.js';
-import { orbitPositionToScene } from './simulation/orbitUtils.js';
+import { orbitPositionToScene, estimateOrbitalVelocity } from './simulation/orbitUtils.js';
+import { updateEarthVelocity } from './simulation/referenceFrames.js';
 
 const cubeTextureLoader = new THREE.CubeTextureLoader();
 const textureLoader = new THREE.TextureLoader();
@@ -439,6 +440,8 @@ const activeAsteroidIds = new Set();
 const planetEntries = [];
 let asteroidPanel = null;
 const asteroidInfoPanel = initAsteroidInfoPanel();
+const earthVelocityOrbital = new THREE.Vector3();
+const earthVelocityKilometersPerSecond = new THREE.Vector3();
 
 function getCurrentSimulationTiming() {
   return {
@@ -682,6 +685,30 @@ const pluto = createPlanet({
     planetEntries.push(entry);
   }
 });
+
+function synchronizeEarthVelocity(frameTime = 0) {
+  if (!earth?.keplerElements) {
+    earthVelocityOrbital.set(0, 0, 0);
+    earthVelocityKilometersPerSecond.set(0, 0, 0);
+    updateEarthVelocity({
+      orbital: earthVelocityOrbital,
+      kilometersPerSecond: earthVelocityKilometersPerSecond
+    });
+    return;
+  }
+
+  estimateOrbitalVelocity(earth.keplerElements, frameTime, {
+    orbitalTarget: earthVelocityOrbital,
+    kilometersPerSecondTarget: earthVelocityKilometersPerSecond
+  });
+
+  updateEarthVelocity({
+    orbital: earthVelocityOrbital,
+    kilometersPerSecond: earthVelocityKilometersPerSecond
+  });
+}
+
+synchronizeEarthVelocity(earth?.keplerElements?.epoch ?? 0);
 
 const spinBindings = [];
 
@@ -1230,6 +1257,8 @@ function animate(now = performance.now()) {
     const { position } = propagateKepler(keplerElements, timing.orbitFrames);
     orbitPositionToScene(position, planetSystem.position);
   });
+
+  synchronizeEarthVelocity(timing.orbitFrames);
 
   animateMoons(timing);
   updateEarthDefaultView();
