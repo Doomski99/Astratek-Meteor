@@ -1,11 +1,12 @@
 import * as THREE from 'three';
 import { createKeplerElements, propagateKepler } from '../simulation/kepler.js';
-import { orbitPositionToScene, sampleKeplerOrbit } from '../simulation/orbitUtils.js';
+import {
+  orbitPositionToScene,
+  sampleKeplerOrbit,
+  estimateOrbitIntersection
+} from '../simulation/orbitUtils.js';
+import { AU_TO_SCENE_UNITS, FRAMES_PER_SIMULATION_DAY, EARTH_COLLISION_TOLERANCE_SCENE_UNITS } from '../simulation/scales.js';
 
-const AU_TO_SCENE_UNITS = 90;
-const FRAMES_PER_SECOND = 60;
-const SIMULATION_SECONDS_PER_DAY = 2.5;
-const FRAMES_PER_SIMULATION_DAY = FRAMES_PER_SECOND * SIMULATION_SECONDS_PER_DAY;
 const DEG_TO_RAD = Math.PI / 180;
 const DEFAULT_VISUAL_SCALE = 0.02;
 const DEFAULT_TNT_YIELD_MT = 0;
@@ -541,13 +542,52 @@ const planetOrbitCatalog = Object.fromEntries(
   Object.entries(planetOrbitDefinitions).map(([name, definition]) => [name, transformPlanetOrbit(definition)])
 );
 
+const earthOrbitDefinition = planetOrbitCatalog.Earth ?? null;
+const earthKeplerElements = earthOrbitDefinition ? createKeplerElements(earthOrbitDefinition) : null;
+const earthOrbitSamples = earthKeplerElements ? sampleKeplerOrbit(earthKeplerElements, 512) : [];
+
 function createAsteroidEntries(catalog = []) {
-  return catalog.map((data, index) => ({
-    data,
-    mesh: null,
-    keplerElements: createKeplerElements(data.orbit),
-    templateIndex: index
-  }));
+  return catalog.map((data, index) => {
+    const keplerElements = createKeplerElements(data.orbit);
+    const intersection =
+      keplerElements && earthKeplerElements
+        ? estimateOrbitIntersection(keplerElements, earthKeplerElements, {
+            tolerance: EARTH_COLLISION_TOLERANCE_SCENE_UNITS,
+            orbitBSamples: earthOrbitSamples
+          })
+        : { intersects: false, minimumDistance: Infinity };
+
+    const minimumDistanceSceneUnits = Number.isFinite(intersection.minimumDistance)
+      ? intersection.minimumDistance
+      : null;
+
+    const earthOrbitIntersection = {
+      intersects: Boolean(intersection.intersects),
+      minimumDistanceSceneUnits,
+      thresholdSceneUnits: earthKeplerElements ? EARTH_COLLISION_TOLERANCE_SCENE_UNITS : null
+    };
+
+    return {
+      data: {
+        ...data,
+        velocity:
+          data.velocity ?? {
+            orbital: { x: 0, y: 0, z: 0 },
+            kilometersPerSecond: { x: 0, y: 0, z: 0 },
+            speedKilometersPerSecond: 0,
+            relative: {
+              kilometersPerSecond: { x: 0, y: 0, z: 0 },
+              speedKilometersPerSecond: 0
+            }
+          },
+        earthOrbitIntersection
+      },
+      mesh: null,
+      keplerElements,
+      templateIndex: index,
+      earthOrbitIntersection
+    };
+  });
 }
 
 export {
