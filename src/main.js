@@ -41,6 +41,7 @@ import {
   planetOrbitCatalog
 } from './data/bodies.js';
 import { initAsteroidPanel } from './ui/asteroidPanel.js';
+import { initAsteroidInfoPanel } from './ui/asteroidInfoPanel.js';
 import { initTimeControls } from './ui/timeControls.js';
 import {
   createAsteroidMeshManager,
@@ -437,6 +438,7 @@ const asteroidEntryMap = new Map();
 const activeAsteroidIds = new Set();
 const planetEntries = [];
 let asteroidPanel = null;
+const asteroidInfoPanel = initAsteroidInfoPanel();
 
 function getCurrentSimulationTiming() {
   return {
@@ -932,6 +934,7 @@ function focusCameraOnAsteroid(entry) {
 function clearAsteroidFocus() {
   asteroidPanel?.clearFocus();
   removeImpactOverlay();
+  asteroidInfoPanel?.clearActiveAsteroid();
 
   if (!focusedAsteroidEntry) {
     return;
@@ -1024,6 +1027,7 @@ function focusAsteroidEntry(entry) {
   setActiveViewTarget(getAsteroidViewTargetId(entry.data.id));
   ensureAsteroidTrajectory(entry);
   focusCameraOnAsteroid(entry);
+  asteroidInfoPanel?.setActiveAsteroid(entry);
   createImpactOverlay(entry);
 }
 
@@ -1127,6 +1131,7 @@ function onMouseMove(event) {
 function updateAsteroids(timing) {
   asteroidEntries.forEach(entry => updateAsteroidTransform(entry, timing));
   updateAsteroidTrajectories();
+  asteroidInfoPanel?.update(focusedAsteroidEntry);
 }
 
 function animateMoons(timing) {

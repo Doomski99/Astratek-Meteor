@@ -168,6 +168,101 @@ p {
     background: #e74c3c;
 }
 
+.asteroid-info {
+    position: absolute;
+    bottom: 5%;
+    right: 1.5%;
+    width: 260px;
+    padding: 14px 16px;
+    background: rgba(0, 0, 32, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    color: #f4f5ff;
+    font-family: Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    z-index: 12;
+}
+
+.asteroid-info__header {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.asteroid-info__title {
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #9ecbff;
+}
+
+.asteroid-info__name {
+    font-size: 16px;
+    font-weight: 600;
+    color: #ffffff;
+}
+
+.asteroid-info__placeholder {
+    margin: 0;
+    font-size: 13px;
+    color: #c0d7ff;
+}
+
+.asteroid-info__sections {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.asteroid-info__section-title {
+    margin: 0 0 4px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #ffdd9e;
+}
+
+.asteroid-info__stat {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+}
+
+.asteroid-info__label {
+    color: #c0d7ff;
+}
+
+.asteroid-info__value {
+    font-variant-numeric: tabular-nums;
+    color: #ffffff;
+}
+
+.asteroid-info__vector {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+    font-size: 12px;
+    color: #e0ecff;
+}
+
+.asteroid-info__vector span {
+    white-space: nowrap;
+}
+
+.asteroid-info--active .asteroid-info__placeholder {
+    display: none;
+}
+
+.asteroid-info__sections[hidden] {
+    display: none;
+}
+
 .view-panel {
     position: absolute;
     top: 15%;

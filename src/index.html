@@ -34,6 +34,27 @@
             <li data-yield="high"><span class="impact-legend__swatch impact-legend__swatch--high"></span><span>&gt; 10 Mt</span></li>
         </ul>
     </div>
+    <aside id="asteroidInfoPanel" class="asteroid-info">
+        <div class="asteroid-info__header">
+            <span class="asteroid-info__title">Asteroid Details</span>
+            <span class="asteroid-info__name" data-asteroid-name>No asteroid selected</span>
+        </div>
+        <p class="asteroid-info__placeholder" data-asteroid-placeholder>Select a tracked asteroid to see telemetry.</p>
+        <div class="asteroid-info__sections" data-asteroid-sections hidden>
+            <section class="asteroid-info__section" data-section="velocity">
+                <h4 class="asteroid-info__section-title">Velocity</h4>
+                <div class="asteroid-info__stat">
+                    <span class="asteroid-info__label">Speed</span>
+                    <span class="asteroid-info__value" data-velocity-speed>—</span>
+                </div>
+                <div class="asteroid-info__vector">
+                    <span>X: <span data-velocity-x>—</span></span>
+                    <span>Y: <span data-velocity-y>—</span></span>
+                    <span>Z: <span data-velocity-z>—</span></span>
+                </div>
+            </section>
+        </div>
+    </aside>
     <div id="planetInfo" class="planet-info">
         <div class="planet-info-content">
             <span class="close-btn" onclick="closeInfo()">&times;</span>
