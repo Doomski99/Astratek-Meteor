@@ -750,7 +750,10 @@ function ensureAsteroidTrajectory(entry) {
     return;
   }
 
-  const points = getTrajectoryPoints(entry, getEarthPosition(), 20);
+  const points = getTrajectoryPoints(entry);
+  if (points.length === 0) {
+    return;
+  }
   const id = entry.data.id;
   let trajectory = asteroidTrajectories.get(id);
 
@@ -783,7 +786,6 @@ function removeAsteroidTrajectory(entryOrId) {
 }
 
 function updateAsteroidTrajectories() {
-  const earthPosition = getEarthPosition();
   const idsToRemove = [];
 
   asteroidTrajectories.forEach((trajectory, asteroidId) => {
@@ -794,7 +796,12 @@ function updateAsteroidTrajectories() {
       return;
     }
 
-    const points = getTrajectoryPoints(entry, earthPosition, 20);
+    const points = getTrajectoryPoints(entry);
+    if (points.length === 0) {
+      disposeObject(trajectory);
+      idsToRemove.push(asteroidId);
+      return;
+    }
     trajectory.geometry.setFromPoints(points);
     if (trajectory.geometry.attributes.position) {
       trajectory.geometry.attributes.position.needsUpdate = true;

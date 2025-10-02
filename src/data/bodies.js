@@ -3,7 +3,8 @@ import { createKeplerElements } from '../simulation/kepler.js';
 
 const AU_TO_SCENE_UNITS = 90;
 const FRAMES_PER_SECOND = 60;
-const FRAMES_PER_DAY = FRAMES_PER_SECOND * 60 * 60 * 24;
+const SIMULATION_SECONDS_PER_DAY = 2.5;
+const FRAMES_PER_SIMULATION_DAY = FRAMES_PER_SECOND * SIMULATION_SECONDS_PER_DAY;
 const DEG_TO_RAD = Math.PI / 180;
 const DEFAULT_VISUAL_SCALE = 0.02;
 const DEFAULT_TNT_YIELD_MT = 0;
@@ -86,7 +87,7 @@ function convertMeanMotion(degPerDay) {
     return 0;
   }
 
-  return (degPerDay * DEG_TO_RAD) / FRAMES_PER_DAY;
+  return (degPerDay * DEG_TO_RAD) / FRAMES_PER_SIMULATION_DAY;
 }
 
 function transformAsteroidRow(row, rowIndex) {

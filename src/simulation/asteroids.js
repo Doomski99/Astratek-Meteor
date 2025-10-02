@@ -5,6 +5,7 @@ import { propagateKepler } from './kepler.js';
 const asteroidPackUrl = new URL('../asteroids/asteroidPack.glb', import.meta.url).href;
 
 const ASTEROID_SCALE_MULTIPLIER = 15;
+const DEFAULT_ORBIT_SEGMENTS = 256;
 
 function getYieldBand(tntMt) {
   if (tntMt <= 1) {
@@ -38,25 +39,38 @@ function updateAsteroidTransform(entry, timing = { orbitFrames: 0, spinFrames: 0
   entry.mesh.rotation.y = baseRotation + spinRate * (timing.spinFrames ?? 0);
 }
 
-function getTrajectoryPoints(entry, earthWorldPosition, elevation = 20) {
-  if (!entry.mesh) {
+function getTrajectoryPoints(entry, segments = DEFAULT_ORBIT_SEGMENTS) {
+  const keplerElements = entry?.keplerElements;
+  if (!keplerElements) {
     return [];
   }
 
-  const asteroidPosition = new THREE.Vector3();
-  const midpoint = new THREE.Vector3();
+  const clampedSegments = Math.max(16, Math.floor(segments));
+  const meanAnomalyAtEpoch = keplerElements.meanAnomalyAtEpoch ?? 0;
+  const epoch = keplerElements.epoch ?? 0;
+  const meanMotion = keplerElements.meanMotion ?? 0;
+  const hasMeanMotion = Number.isFinite(meanMotion) && Math.abs(meanMotion) > 1e-12;
+  const points = [];
+  const TWO_PI = Math.PI * 2;
 
-  entry.mesh.getWorldPosition(asteroidPosition);
-  midpoint.copy(asteroidPosition).lerp(earthWorldPosition, 0.5);
-  midpoint.y += elevation;
+  for (let index = 0; index <= clampedSegments; index += 1) {
+    const progress = index / clampedSegments;
+    const targetMeanAnomaly = meanAnomalyAtEpoch + TWO_PI * progress;
 
-  const curve = new THREE.CatmullRomCurve3([
-    asteroidPosition.clone(),
-    midpoint.clone(),
-    earthWorldPosition.clone()
-  ]);
+    let elementsForSample = keplerElements;
+    let timeForSample = epoch;
 
-  return curve.getPoints(32);
+    if (hasMeanMotion) {
+      timeForSample = epoch + (targetMeanAnomaly - meanAnomalyAtEpoch) / meanMotion;
+    } else {
+      elementsForSample = { ...keplerElements, meanAnomalyAtEpoch: targetMeanAnomaly };
+    }
+
+    const { position } = propagateKepler(elementsForSample, timeForSample);
+    points.push(new THREE.Vector3(position.x, position.y, position.z));
+  }
+
+  return points;
 }
 
 function createTrajectoryLine(points) {
