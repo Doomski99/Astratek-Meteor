@@ -112,6 +112,7 @@ let impactTimeWidget = null;
 const timeControls = initTimeControls(simulationClock);
 impactTimeWidget = createImpactTimeWidget({
   clock: simulationClock,
+  orbitTimeChannel,
   anchorElement: timeControls?.element ?? null
 });
 
@@ -1127,7 +1128,7 @@ function updateImpactTimeWidget(entry) {
     return;
   }
 
-  const timestampMs = impactState.timestampMs;
+  const timestampMs = deriveOrbitTimestampMs(impactState.orbitFrames) ?? impactState.timestampMs;
   if (!Number.isFinite(timestampMs)) {
     impactTimeWidget.clear();
     return;
@@ -1135,8 +1136,25 @@ function updateImpactTimeWidget(entry) {
 
   impactTimeWidget.setImpactTime({
     timestampMs,
+    orbitFrames: impactState.orbitFrames,
     asteroidName: entry?.data?.name ?? entry?.data?.id ?? null
   });
+}
+
+function deriveOrbitTimestampMs(orbitFrames) {
+  if (!Number.isFinite(orbitFrames)) {
+    return null;
+  }
+
+  const multiplier = typeof orbitTimeChannel?.getMultiplier === 'function'
+    ? orbitTimeChannel.getMultiplier()
+    : null;
+
+  if (!Number.isFinite(multiplier) || multiplier <= 0) {
+    return null;
+  }
+
+  return orbitFrames / multiplier;
 }
 
 function applyEarthIntersectionResult(entry, intersection) {
@@ -1238,10 +1256,12 @@ function applyEarthIntersectionResult(entry, intersection) {
       relativeSpeedKilometersPerSecond = relativeKilometersPerSecondVector.length();
     }
 
+    const timestampMs = deriveOrbitTimestampMs(impactOrbitFrames);
+
     asteroidImpactState = {
       orbitFrames: impactOrbitFrames,
       simulationSeconds: impactOrbitFrames * SECONDS_PER_FRAME,
-      timestampMs: impactOrbitFrames * SECONDS_PER_FRAME * 1000,
+      timestampMs,
       sampleIndex: closestSampleIndexA,
       orbitalPosition,
       scenePosition,
@@ -1267,7 +1287,7 @@ function applyEarthIntersectionResult(entry, intersection) {
       entry.data.tntYieldMt = impactYieldMegatons;
     }
 
-    const impactTimestampMs = asteroidImpactState.timestampMs;
+    const impactTimestampMs = deriveOrbitTimestampMs(impactOrbitFrames) ?? asteroidImpactState.timestampMs;
     if (Number.isFinite(impactTimestampMs)) {
       const currentDuration = simulationClock.getDuration();
       const paddedDuration = impactTimestampMs + IMPACT_DURATION_PADDING_MS;

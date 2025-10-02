@@ -90,7 +90,12 @@ function normalizeName(name) {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-function createImpactTimeWidget({ clock, container = document.body, anchorElement = null } = {}) {
+function createImpactTimeWidget({
+  clock,
+  orbitTimeChannel = null,
+  container = document.body,
+  anchorElement = null
+} = {}) {
   if (!clock) {
     throw new Error('Simulation clock instance is required for impact time widget.');
   }
@@ -121,17 +126,33 @@ function createImpactTimeWidget({ clock, container = document.body, anchorElemen
   }
 
   let impactTimestampMs = null;
+  let impactOrbitFrames = null;
   let asteroidName = null;
 
+  function deriveTimestampMs() {
+    const hasOrbitFrames = Number.isFinite(impactOrbitFrames);
+
+    if (hasOrbitFrames && orbitTimeChannel && typeof orbitTimeChannel.getMultiplier === 'function') {
+      const multiplier = orbitTimeChannel.getMultiplier();
+      if (Number.isFinite(multiplier) && multiplier > 0) {
+        return impactOrbitFrames / multiplier;
+      }
+    }
+
+    return Number.isFinite(impactTimestampMs) ? impactTimestampMs : null;
+  }
+
   function updateView() {
-    if (!Number.isFinite(impactTimestampMs)) {
+    const derivedTimestamp = deriveTimestampMs();
+
+    if (!Number.isFinite(derivedTimestamp)) {
       label.textContent = 'Impact time unavailable';
       button.disabled = true;
       root.hidden = true;
       return;
     }
 
-    const formattedTime = formatTime(impactTimestampMs);
+    const formattedTime = formatTime(derivedTimestamp);
     const nameText = normalizeName(asteroidName);
     label.textContent = nameText ? `${nameText} impact at ${formattedTime}` : `Impact at ${formattedTime}`;
     button.disabled = false;
@@ -139,22 +160,25 @@ function createImpactTimeWidget({ clock, container = document.body, anchorElemen
   }
 
   button.addEventListener('click', () => {
-    if (!Number.isFinite(impactTimestampMs)) {
+    const targetTimestamp = deriveTimestampMs();
+    if (!Number.isFinite(targetTimestamp)) {
       return;
     }
-    clock.setTime(impactTimestampMs);
+    clock.setTime(targetTimestamp);
     clock.setPaused(false);
   });
 
   return {
     element: root,
-    setImpactTime({ timestampMs, asteroidName: name } = {}) {
+    setImpactTime({ timestampMs, orbitFrames, asteroidName: name } = {}) {
       impactTimestampMs = Number.isFinite(timestampMs) ? timestampMs : null;
+      impactOrbitFrames = Number.isFinite(orbitFrames) ? orbitFrames : null;
       asteroidName = normalizeName(name);
       updateView();
     },
     clear() {
       impactTimestampMs = null;
+      impactOrbitFrames = null;
       asteroidName = null;
       label.textContent = 'Impact time unavailable';
       button.disabled = true;
