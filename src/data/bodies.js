@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { createKeplerElements } from '../simulation/kepler.js';
+import { createKeplerElements, propagateKepler } from '../simulation/kepler.js';
+import { orbitPositionToScene, sampleKeplerOrbit } from '../simulation/orbitUtils.js';
 
 const AU_TO_SCENE_UNITS = 90;
 const FRAMES_PER_SECOND = 60;
@@ -8,6 +9,7 @@ const FRAMES_PER_SIMULATION_DAY = FRAMES_PER_SECOND * SIMULATION_SECONDS_PER_DAY
 const DEG_TO_RAD = Math.PI / 180;
 const DEFAULT_VISUAL_SCALE = 0.02;
 const DEFAULT_TNT_YIELD_MT = 0;
+const PLANET_ORBIT_SEGMENTS = 256;
 
 function parseCsv(text) {
   const source = typeof text === 'string' ? text : '';
@@ -270,34 +272,56 @@ const planetData = {
 function createPlanetFactory({ scene, textureLoader }) {
   const loader = textureLoader ?? new THREE.TextureLoader();
 
-  return function createPlanet(
-    planetName,
-    size,
-    position,
-    tilt,
-    texture,
-    bump,
-    ring,
-    atmosphere,
-    moons
-  ) {
-    let material;
-
+  function loadTextureMaterial(texture, bump) {
     if (texture instanceof THREE.Material) {
-      material = texture;
-    } else if (bump) {
-      material = new THREE.MeshPhongMaterial({
+      return texture;
+    }
+
+    if (bump) {
+      return new THREE.MeshPhongMaterial({
         map: loader.load(texture),
         bumpMap: loader.load(bump),
         bumpScale: 0.7
       });
-    } else {
-      material = new THREE.MeshPhongMaterial({
-        map: loader.load(texture)
-      });
     }
 
-    const name = planetName;
+    return new THREE.MeshPhongMaterial({ map: loader.load(texture) });
+  }
+
+  function createOrbitLine(elements, segments = PLANET_ORBIT_SEGMENTS) {
+    if (!elements) {
+      return null;
+    }
+
+    const points = sampleKeplerOrbit(elements, segments);
+    if (points.length === 0) {
+      return null;
+    }
+
+    const geometry = new THREE.BufferGeometry().setFromPoints(points);
+    const material = new THREE.LineBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.03
+    });
+
+    const line = new THREE.LineLoop(geometry, material);
+    line.frustumCulled = false;
+    return line;
+  }
+
+  return function createPlanet({
+    name: planetName,
+    size,
+    tilt = 0,
+    texture,
+    bump,
+    ring,
+    atmosphere,
+    moons,
+    orbit
+  }) {
+    const material = loadTextureMaterial(texture, bump);
     const geometry = new THREE.SphereGeometry(size, 32, 20);
     const planet = new THREE.Mesh(geometry, material);
     const planet3d = new THREE.Object3D();
@@ -307,20 +331,7 @@ function createPlanetFactory({ scene, textureLoader }) {
     let Atmosphere;
     let Ring;
 
-    planet.position.x = position;
     planet.rotation.z = (tilt * Math.PI) / 180;
-
-    const orbitPath = new THREE.EllipseCurve(0, 0, position, position, 0, 2 * Math.PI, false, 0);
-    const pathPoints = orbitPath.getPoints(100);
-    const orbitGeometry = new THREE.BufferGeometry().setFromPoints(pathPoints);
-    const orbitMaterial = new THREE.LineBasicMaterial({
-      color: 0xffffff,
-      transparent: true,
-      opacity: 0.03
-    });
-    const orbit = new THREE.LineLoop(orbitGeometry, orbitMaterial);
-    orbit.rotation.x = Math.PI / 2;
-    planetSystem.add(orbit);
 
     if (ring) {
       const RingGeo = new THREE.RingGeometry(ring.innerRadius, ring.outerRadius, 30);
@@ -330,7 +341,6 @@ function createPlanetFactory({ scene, textureLoader }) {
       });
       Ring = new THREE.Mesh(RingGeo, RingMat);
       planetSystem.add(Ring);
-      Ring.position.x = position;
       Ring.rotation.x = -0.5 * Math.PI;
       Ring.rotation.y = -(tilt * Math.PI) / 180;
     }
@@ -377,12 +387,159 @@ function createPlanetFactory({ scene, textureLoader }) {
       });
     }
 
+    const keplerElements = orbit ? createKeplerElements(orbit) : null;
+    const orbitLine = createOrbitLine(keplerElements);
+
+    if (orbitLine) {
+      planet3d.add(orbitLine);
+    }
+
     planet3d.add(planetSystem);
     scene.add(planet3d);
 
-    return { name, planet, planet3d, Atmosphere, moons, planetSystem, Ring };
+    if (keplerElements) {
+      const { position } = propagateKepler(keplerElements, keplerElements.epoch ?? 0);
+      orbitPositionToScene(position, planetSystem.position);
+    }
+
+    return {
+      name: planetName,
+      planet,
+      planet3d,
+      Atmosphere,
+      moons,
+      planetSystem,
+      Ring,
+      keplerElements,
+      orbitLine
+    };
   };
 }
+
+const planetOrbitDefinitions = {
+  Mercury: {
+    semiMajorAxisAu: 0.38709927,
+    eccentricity: 0.20563593,
+    inclination: 7.00497902,
+    longitudeOfAscendingNode: 48.33076593,
+    longitudeOfPerihelion: 77.45779628,
+    meanLongitude: 252.2503235,
+    meanMotion: 4.09233445
+  },
+  Venus: {
+    semiMajorAxisAu: 0.72333566,
+    eccentricity: 0.00677672,
+    inclination: 3.39467605,
+    longitudeOfAscendingNode: 76.67984255,
+    longitudeOfPerihelion: 131.60246718,
+    meanLongitude: 181.9790995,
+    meanMotion: 1.60213034
+  },
+  Earth: {
+    semiMajorAxisAu: 1.00000261,
+    eccentricity: 0.01671123,
+    inclination: -0.00001531,
+    longitudeOfAscendingNode: -11.26064,
+    longitudeOfPerihelion: 102.93768193,
+    meanLongitude: 100.46457166,
+    meanMotion: 0.98564736
+  },
+  Mars: {
+    semiMajorAxisAu: 1.52371034,
+    eccentricity: 0.0933941,
+    inclination: 1.84969142,
+    longitudeOfAscendingNode: 49.57854,
+    longitudeOfPerihelion: 336.04084,
+    meanLongitude: 355.453432,
+    meanMotion: 0.52403293
+  },
+  Jupiter: {
+    semiMajorAxisAu: 5.202887,
+    eccentricity: 0.04838624,
+    inclination: 1.30439695,
+    longitudeOfAscendingNode: 100.47390909,
+    longitudeOfPerihelion: 14.72847983,
+    meanLongitude: 34.39644,
+    meanMotion: 0.08308529
+  },
+  Saturn: {
+    semiMajorAxisAu: 9.53667594,
+    eccentricity: 0.05386179,
+    inclination: 2.48599187,
+    longitudeOfAscendingNode: 113.66242448,
+    longitudeOfPerihelion: 92.59887831,
+    meanLongitude: 49.954244,
+    meanMotion: 0.03344414
+  },
+  Uranus: {
+    semiMajorAxisAu: 19.18916464,
+    eccentricity: 0.04725744,
+    inclination: 0.77263783,
+    longitudeOfAscendingNode: 74.01692503,
+    longitudeOfPerihelion: 170.9542763,
+    meanLongitude: 313.23810451,
+    meanMotion: 0.011718015
+  },
+  Neptune: {
+    semiMajorAxisAu: 30.06992276,
+    eccentricity: 0.00859048,
+    inclination: 1.77004347,
+    longitudeOfAscendingNode: 131.78422574,
+    longitudeOfPerihelion: 44.96476227,
+    meanLongitude: 304.88003,
+    meanMotion: 0.005995147
+  },
+  Pluto: {
+    semiMajorAxisAu: 39.48211675,
+    eccentricity: 0.2488273,
+    inclination: 17.14001206,
+    longitudeOfAscendingNode: 110.30393684,
+    longitudeOfPerihelion: 224.06891629,
+    meanLongitude: 238.92903833,
+    meanMotion: 0.0039640155
+  }
+};
+
+function normalizeAngleDegrees(value) {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+
+  const normalized = value % 360;
+  return normalized < 0 ? normalized + 360 : normalized;
+}
+
+function transformPlanetOrbit(definition) {
+  if (!definition) {
+    return null;
+  }
+
+  const semiMajorAxis = (definition.semiMajorAxisAu ?? 0) * AU_TO_SCENE_UNITS;
+  const eccentricity = definition.eccentricity ?? 0;
+  const inclination = definition.inclination ?? 0;
+  const longitudeOfAscendingNode = definition.longitudeOfAscendingNode ?? 0;
+  const argumentOfPeriapsis =
+    normalizeAngleDegrees((definition.longitudeOfPerihelion ?? 0) - (definition.longitudeOfAscendingNode ?? 0));
+  const meanAnomalyAtEpoch = normalizeAngleDegrees(
+    (definition.meanLongitude ?? 0) - (definition.longitudeOfPerihelion ?? 0)
+  );
+  const meanMotion = convertMeanMotion(definition.meanMotion ?? 0);
+
+  return {
+    semiMajorAxis,
+    eccentricity,
+    inclination,
+    longitudeOfAscendingNode,
+    argumentOfPeriapsis,
+    meanAnomalyAtEpoch,
+    meanMotion,
+    epoch: 0
+  };
+}
+
+const planetOrbitCatalog = Object.fromEntries(
+  Object.entries(planetOrbitDefinitions).map(([name, definition]) => [name, transformPlanetOrbit(definition)])
+);
 
 function createAsteroidEntries(catalog = []) {
   return catalog.map((data, index) => ({
@@ -393,4 +550,10 @@ function createAsteroidEntries(catalog = []) {
   }));
 }
 
-export { loadAsteroidCatalog, planetData, createPlanetFactory, createAsteroidEntries };
+export {
+  loadAsteroidCatalog,
+  planetData,
+  createPlanetFactory,
+  createAsteroidEntries,
+  planetOrbitCatalog
+};

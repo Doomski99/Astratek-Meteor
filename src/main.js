@@ -33,7 +33,13 @@ import plutoTexture from '/images/plutomap.jpg';
 
 import { scene, camera, renderer, controls, composer, outlinePass } from './core/scene.js';
 import { createSimulationClock } from './core/time.js';
-import { createPlanetFactory, planetData, createAsteroidEntries, loadAsteroidCatalog } from './data/bodies.js';
+import {
+  createPlanetFactory,
+  planetData,
+  createAsteroidEntries,
+  loadAsteroidCatalog,
+  planetOrbitCatalog
+} from './data/bodies.js';
 import { initAsteroidPanel } from './ui/asteroidPanel.js';
 import { initTimeControls } from './ui/timeControls.js';
 import {
@@ -46,6 +52,8 @@ import {
   createImpactOverlayMesh,
   disposeObject
 } from './simulation/asteroids.js';
+import { propagateKepler } from './simulation/kepler.js';
+import { orbitPositionToScene } from './simulation/orbitUtils.js';
 
 const cubeTextureLoader = new THREE.CubeTextureLoader();
 const textureLoader = new THREE.TextureLoader();
@@ -427,6 +435,7 @@ const earthWorldPosition = new THREE.Vector3();
 const asteroidEntries = [];
 const asteroidEntryMap = new Map();
 const activeAsteroidIds = new Set();
+const planetEntries = [];
 let asteroidPanel = null;
 
 function getCurrentSimulationTiming() {
@@ -559,10 +568,40 @@ const jupiterMoons = [
   }
 ];
 
-const mercury = createPlanet('Mercury', 2.4, 40, 0, mercuryTexture, mercuryBump);
-const venus = createPlanet('Venus', 6.1, 65, 3, venusTexture, venusBump, null, venusAtmosphere);
-const earth = createPlanet('Earth', 6.4, 90, 23, earthMaterial, null, null, earthAtmosphere, earthMoon);
-const mars = createPlanet('Mars', 3.4, 115, 25, marsTexture, marsBump);
+const mercury = createPlanet({
+  name: 'Mercury',
+  size: 2.4,
+  tilt: 0,
+  texture: mercuryTexture,
+  bump: mercuryBump,
+  orbit: planetOrbitCatalog.Mercury
+});
+const venus = createPlanet({
+  name: 'Venus',
+  size: 6.1,
+  tilt: 3,
+  texture: venusTexture,
+  bump: venusBump,
+  atmosphere: venusAtmosphere,
+  orbit: planetOrbitCatalog.Venus
+});
+const earth = createPlanet({
+  name: 'Earth',
+  size: 6.4,
+  tilt: 23,
+  texture: earthMaterial,
+  atmosphere: earthAtmosphere,
+  moons: earthMoon,
+  orbit: planetOrbitCatalog.Earth
+});
+const mars = createPlanet({
+  name: 'Mars',
+  size: 3.4,
+  tilt: 25,
+  texture: marsTexture,
+  bump: marsBump,
+  orbit: planetOrbitCatalog.Mars
+});
 
 marsMoons.forEach((moon, index) => {
   moon.initialPhase = moon.initialPhase ?? index * (Math.PI / 2);
@@ -579,35 +618,76 @@ marsMoons.forEach((moon, index) => {
   });
 });
 
-const jupiter = createPlanet('Jupiter', 69 / 4, 200, 3, jupiterTexture, null, null, null, jupiterMoons);
-const saturn = createPlanet('Saturn', 58 / 4, 270, 26, saturnTexture, null, {
-  innerRadius: 18,
-  outerRadius: 29,
-  texture: satRingTexture
+const jupiter = createPlanet({
+  name: 'Jupiter',
+  size: 69 / 4,
+  tilt: 3,
+  texture: jupiterTexture,
+  moons: jupiterMoons,
+  orbit: planetOrbitCatalog.Jupiter
 });
-const uranus = createPlanet('Uranus', 25 / 4, 320, 82, uranusTexture, null, {
-  innerRadius: 6,
-  outerRadius: 8,
-  texture: uraRingTexture
+const saturn = createPlanet({
+  name: 'Saturn',
+  size: 58 / 4,
+  tilt: 26,
+  texture: saturnTexture,
+  ring: {
+    innerRadius: 18,
+    outerRadius: 29,
+    texture: satRingTexture
+  },
+  orbit: planetOrbitCatalog.Saturn
 });
-const neptune = createPlanet('Neptune', 24 / 4, 340, 28, neptuneTexture);
-const pluto = createPlanet('Pluto', 1, 350, 57, plutoTexture);
+const uranus = createPlanet({
+  name: 'Uranus',
+  size: 25 / 4,
+  tilt: 82,
+  texture: uranusTexture,
+  ring: {
+    innerRadius: 6,
+    outerRadius: 8,
+    texture: uraRingTexture
+  },
+  orbit: planetOrbitCatalog.Uranus
+});
+const neptune = createPlanet({
+  name: 'Neptune',
+  size: 24 / 4,
+  tilt: 28,
+  texture: neptuneTexture,
+  orbit: planetOrbitCatalog.Neptune
+});
+const pluto = createPlanet({
+  name: 'Pluto',
+  size: 1,
+  tilt: 57,
+  texture: plutoTexture,
+  orbit: planetOrbitCatalog.Pluto
+});
+
+[
+  mercury,
+  venus,
+  earth,
+  mars,
+  jupiter,
+  saturn,
+  uranus,
+  neptune,
+  pluto
+].forEach(entry => {
+  if (entry) {
+    planetEntries.push(entry);
+  }
+});
 
 const spinBindings = [];
-const orbitBindings = [];
 
 function registerSpinBinding(object, ratePerFrame) {
   if (!object) {
     return;
   }
   spinBindings.push({ object, rate: ratePerFrame, base: object.rotation.y });
-}
-
-function registerOrbitBinding(object, ratePerFrame) {
-  if (!object) {
-    return;
-  }
-  orbitBindings.push({ object, rate: ratePerFrame, base: object.rotation.y });
 }
 
 registerSpinBinding(sun, 0.001);
@@ -623,15 +703,6 @@ registerSpinBinding(uranus.planet, 0.005);
 registerSpinBinding(neptune.planet, 0.005);
 registerSpinBinding(pluto.planet, 0.001);
 
-registerOrbitBinding(mercury.planet3d, 0.004);
-registerOrbitBinding(venus.planet3d, 0.0006);
-registerOrbitBinding(earth.planet3d, 0.001);
-registerOrbitBinding(mars.planet3d, 0.0007);
-registerOrbitBinding(jupiter.planet3d, 0.0003);
-registerOrbitBinding(saturn.planet3d, 0.0002);
-registerOrbitBinding(uranus.planet3d, 0.0001);
-registerOrbitBinding(neptune.planet3d, 0.00008);
-registerOrbitBinding(pluto.planet3d, 0.00006);
 
 updateEarthDefaultView(true);
 setCameraZoomLimitsForObject(earth?.planet ?? null, 6.4);
@@ -1145,8 +1216,14 @@ function animate(now = performance.now()) {
     binding.object.rotation.y = binding.base + binding.rate * timing.spinFrames;
   });
 
-  orbitBindings.forEach(binding => {
-    binding.object.rotation.y = binding.base + binding.rate * timing.orbitFrames;
+  planetEntries.forEach(entry => {
+    const { keplerElements, planetSystem } = entry;
+    if (!keplerElements || !planetSystem) {
+      return;
+    }
+
+    const { position } = propagateKepler(keplerElements, timing.orbitFrames);
+    orbitPositionToScene(position, planetSystem.position);
   });
 
   animateMoons(timing);

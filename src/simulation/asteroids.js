@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { propagateKepler } from './kepler.js';
+import { orbitPositionToScene, sampleKeplerOrbit } from './orbitUtils.js';
 
 const asteroidPackUrl = new URL('../asteroids/asteroidPack.glb', import.meta.url).href;
 
@@ -31,7 +32,7 @@ function updateAsteroidTransform(entry, timing = { orbitFrames: 0, spinFrames: 0
     entry.mesh.position.set(0, 0, 0);
   } else {
     const { position } = propagateKepler(keplerElements, orbitFrames);
-    entry.mesh.position.set(position.x, position.y, position.z);
+    orbitPositionToScene(position, entry.mesh.position);
   }
 
   const spinRate = entry.data.spinRate ?? 0.001;
@@ -45,32 +46,7 @@ function getTrajectoryPoints(entry, segments = DEFAULT_ORBIT_SEGMENTS) {
     return [];
   }
 
-  const clampedSegments = Math.max(16, Math.floor(segments));
-  const meanAnomalyAtEpoch = keplerElements.meanAnomalyAtEpoch ?? 0;
-  const epoch = keplerElements.epoch ?? 0;
-  const meanMotion = keplerElements.meanMotion ?? 0;
-  const hasMeanMotion = Number.isFinite(meanMotion) && Math.abs(meanMotion) > 1e-12;
-  const points = [];
-  const TWO_PI = Math.PI * 2;
-
-  for (let index = 0; index <= clampedSegments; index += 1) {
-    const progress = index / clampedSegments;
-    const targetMeanAnomaly = meanAnomalyAtEpoch + TWO_PI * progress;
-
-    let elementsForSample = keplerElements;
-    let timeForSample = epoch;
-
-    if (hasMeanMotion) {
-      timeForSample = epoch + (targetMeanAnomaly - meanAnomalyAtEpoch) / meanMotion;
-    } else {
-      elementsForSample = { ...keplerElements, meanAnomalyAtEpoch: targetMeanAnomaly };
-    }
-
-    const { position } = propagateKepler(elementsForSample, timeForSample);
-    points.push(new THREE.Vector3(position.x, position.y, position.z));
-  }
-
-  return points;
+  return sampleKeplerOrbit(keplerElements, segments);
 }
 
 function createTrajectoryLine(points) {
