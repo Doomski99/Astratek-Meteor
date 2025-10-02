@@ -123,6 +123,8 @@ function estimateOrbitIntersection(
 
   const toleranceSquared = tolerance * tolerance;
   let minimumDistanceSquared = Infinity;
+  let closestPointA = null;
+  let closestPointB = null;
 
   for (let indexA = 0; indexA < samplesA.length; indexA += 1) {
     const pointA = samplesA[indexA];
@@ -133,17 +135,26 @@ function estimateOrbitIntersection(
 
       if (distanceSquared < minimumDistanceSquared) {
         minimumDistanceSquared = distanceSquared;
+        closestPointA = pointA.clone();
+        closestPointB = pointB.clone();
       }
 
       if (minimumDistanceSquared <= toleranceSquared) {
-        return { intersects: true, minimumDistance: Math.sqrt(minimumDistanceSquared) };
+        return {
+          intersects: true,
+          minimumDistance: Math.sqrt(minimumDistanceSquared),
+          closestPointA,
+          closestPointB
+        };
       }
     }
   }
 
   return {
     intersects: minimumDistanceSquared <= toleranceSquared,
-    minimumDistance: Math.sqrt(minimumDistanceSquared)
+    minimumDistance: Math.sqrt(minimumDistanceSquared),
+    closestPointA,
+    closestPointB
   };
 }
 
