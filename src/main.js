@@ -394,10 +394,10 @@ const asteroidYieldColors = {
   high: 0xe74c3c
 };
 
-const asteroidYieldRadiusScale = {
-  low: 1.3,
-  medium: 1.8,
-  high: 2.6
+const asteroidYieldAngularRadii = {
+  low: 8,
+  medium: 18,
+  high: 32
 };
 
 const defaultAsteroidCameraOffset = new THREE.Vector3(25, 15, 25);
@@ -1009,7 +1009,7 @@ function createImpactOverlay(entry) {
   const earthRadius = earth?.planet?.geometry?.parameters?.radius ?? EARTH_RADIUS_SCENE_UNITS;
   asteroidImpactOverlay = createImpactOverlayMesh(entry, earthRadius, {
     colors: asteroidYieldColors,
-    radiusScale: asteroidYieldRadiusScale
+    angularRadii: asteroidYieldAngularRadii
   });
 
   if (earth?.planet) {
@@ -1019,6 +1019,14 @@ function createImpactOverlay(entry) {
   }
 
   setImpactLegendVisible(true);
+}
+
+function toPlainVector(vector) {
+  if (!vector) {
+    return null;
+  }
+
+  return { x: vector.x, y: vector.y, z: vector.z };
 }
 
 function applyEarthIntersectionResult(entry, intersection) {
@@ -1038,15 +1046,38 @@ function applyEarthIntersectionResult(entry, intersection) {
     ? earthIntersectionOptions.tolerance
     : EARTH_COLLISION_TOLERANCE_SCENE_UNITS;
 
+  const closestPointA = intersection?.closestPointA ? intersection.closestPointA.clone() : null;
+  const closestPointB = intersection?.closestPointB ? intersection.closestPointB.clone() : null;
+
+  let impactNormal = null;
+  if (closestPointA && closestPointB) {
+    const relativeVector = closestPointA.clone().sub(closestPointB);
+    if (relativeVector.lengthSq() > 1e-8) {
+      impactNormal = relativeVector.normalize();
+    }
+  }
+
+  if (!impactNormal && closestPointB && closestPointB.lengthSq() > 1e-8) {
+    impactNormal = closestPointB.clone().normalize();
+  }
+
   const info = {
     intersects: Boolean(intersection?.intersects),
     minimumDistanceSceneUnits,
-    thresholdSceneUnits
+    thresholdSceneUnits,
+    impactPoint: closestPointB,
+    impactNormal
   };
 
   entry.earthOrbitIntersection = info;
   if (entry.data) {
-    entry.data.earthOrbitIntersection = { ...info };
+    entry.data.earthOrbitIntersection = {
+      intersects: info.intersects,
+      minimumDistanceSceneUnits: info.minimumDistanceSceneUnits,
+      thresholdSceneUnits: info.thresholdSceneUnits,
+      impactPoint: toPlainVector(info.impactPoint),
+      impactNormal: toPlainVector(info.impactNormal)
+    };
   }
 
   return info;

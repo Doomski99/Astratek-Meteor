@@ -561,10 +561,41 @@ function createAsteroidEntries(catalog = []) {
       ? intersection.minimumDistance
       : null;
 
+    const closestPointA = intersection.closestPointA ? intersection.closestPointA.clone() : null;
+    const closestPointB = intersection.closestPointB ? intersection.closestPointB.clone() : null;
+
+    let impactNormal = null;
+    if (closestPointA && closestPointB) {
+      const relativeVector = closestPointA.clone().sub(closestPointB);
+      if (relativeVector.lengthSq() > 1e-8) {
+        impactNormal = relativeVector.normalize();
+      }
+    }
+
+    if (!impactNormal && closestPointB && closestPointB.lengthSq() > 1e-8) {
+      impactNormal = closestPointB.clone().normalize();
+    }
+
+    const thresholdSceneUnits = earthKeplerElements ? EARTH_COLLISION_TOLERANCE_SCENE_UNITS : null;
+
     const earthOrbitIntersection = {
       intersects: Boolean(intersection.intersects),
       minimumDistanceSceneUnits,
-      thresholdSceneUnits: earthKeplerElements ? EARTH_COLLISION_TOLERANCE_SCENE_UNITS : null
+      thresholdSceneUnits,
+      impactPoint: closestPointB,
+      impactNormal
+    };
+
+    const earthOrbitIntersectionData = {
+      intersects: earthOrbitIntersection.intersects,
+      minimumDistanceSceneUnits,
+      thresholdSceneUnits,
+      impactPoint: closestPointB
+        ? { x: closestPointB.x, y: closestPointB.y, z: closestPointB.z }
+        : null,
+      impactNormal: impactNormal
+        ? { x: impactNormal.x, y: impactNormal.y, z: impactNormal.z }
+        : null
     };
 
     return {
@@ -580,7 +611,7 @@ function createAsteroidEntries(catalog = []) {
               speedKilometersPerSecond: 0
             }
           },
-        earthOrbitIntersection
+        earthOrbitIntersection: earthOrbitIntersectionData
       },
       mesh: null,
       keplerElements,
