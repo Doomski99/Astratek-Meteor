@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { propagateKepler } from './kepler.js';
-import { orbitPositionToScene, sampleKeplerOrbit } from './orbitUtils.js';
+import { orbitPositionToScene, sampleKeplerOrbit, estimateOrbitalVelocity } from './orbitUtils.js';
 
 const asteroidPackUrl = new URL('../asteroids/asteroidPack.glb', import.meta.url).href;
 
@@ -20,24 +20,76 @@ function getYieldBand(tntMt) {
   return 'high';
 }
 
-function updateAsteroidTransform(entry, timing = { orbitFrames: 0, spinFrames: 0 }) {
-  if (!entry.mesh) {
-    return;
+function ensureVelocityContainers(entry) {
+  if (!entry.velocityOrbital) {
+    entry.velocityOrbital = new THREE.Vector3();
   }
 
+  if (!entry.velocityKilometersPerSecond) {
+    entry.velocityKilometersPerSecond = new THREE.Vector3();
+  }
+
+  if (!entry.data.velocity) {
+    entry.data.velocity = {
+      orbital: { x: 0, y: 0, z: 0 },
+      kilometersPerSecond: { x: 0, y: 0, z: 0 },
+      speedKilometersPerSecond: 0
+    };
+  }
+
+  return entry.data.velocity;
+}
+
+function updateAsteroidTransform(entry, timing = { orbitFrames: 0, spinFrames: 0 }) {
   const orbitFrames = timing.orbitFrames ?? 0;
   const keplerElements = entry.keplerElements;
+  const velocityData = ensureVelocityContainers(entry);
 
   if (!keplerElements) {
-    entry.mesh.position.set(0, 0, 0);
+    if (entry.mesh) {
+      entry.mesh.position.set(0, 0, 0);
+    }
+    entry.velocityOrbital.set(0, 0, 0);
+    entry.velocityKilometersPerSecond.set(0, 0, 0);
+    velocityData.orbital.x = 0;
+    velocityData.orbital.y = 0;
+    velocityData.orbital.z = 0;
+    velocityData.kilometersPerSecond.x = 0;
+    velocityData.kilometersPerSecond.y = 0;
+    velocityData.kilometersPerSecond.z = 0;
+    velocityData.speedKilometersPerSecond = 0;
   } else {
     const { position } = propagateKepler(keplerElements, orbitFrames);
-    orbitPositionToScene(position, entry.mesh.position);
+    if (entry.mesh) {
+      orbitPositionToScene(position, entry.mesh.position);
+    }
+    const velocity = estimateOrbitalVelocity(keplerElements, orbitFrames, {
+      orbitalTarget: entry.velocityOrbital,
+      kilometersPerSecondTarget: entry.velocityKilometersPerSecond
+    });
+
+    velocityData.orbital.x = velocity.orbital.x;
+    velocityData.orbital.y = velocity.orbital.y;
+    velocityData.orbital.z = velocity.orbital.z;
+
+    if (velocity.kilometersPerSecond) {
+      velocityData.kilometersPerSecond.x = velocity.kilometersPerSecond.x;
+      velocityData.kilometersPerSecond.y = velocity.kilometersPerSecond.y;
+      velocityData.kilometersPerSecond.z = velocity.kilometersPerSecond.z;
+      velocityData.speedKilometersPerSecond = velocity.kilometersPerSecond.length();
+    } else {
+      velocityData.kilometersPerSecond.x = 0;
+      velocityData.kilometersPerSecond.y = 0;
+      velocityData.kilometersPerSecond.z = 0;
+      velocityData.speedKilometersPerSecond = 0;
+    }
   }
 
   const spinRate = entry.data.spinRate ?? 0.001;
-  const baseRotation = entry.baseRotationY ?? entry.mesh.rotation.y;
-  entry.mesh.rotation.y = baseRotation + spinRate * (timing.spinFrames ?? 0);
+  if (entry.mesh) {
+    const baseRotation = entry.baseRotationY ?? entry.mesh.rotation.y;
+    entry.mesh.rotation.y = baseRotation + spinRate * (timing.spinFrames ?? 0);
+  }
 }
 
 function getTrajectoryPoints(entry, segments = DEFAULT_ORBIT_SEGMENTS) {

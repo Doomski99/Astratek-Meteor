@@ -1,7 +1,9 @@
 import * as THREE from 'three';
 import { propagateKepler } from './kepler.js';
+import { KILOMETERS_PER_SCENE_UNIT, SECONDS_PER_FRAME } from './scales.js';
 
 const DEFAULT_ORBIT_SEGMENTS = 256;
+const SCENE_TO_KILOMETERS_PER_SECOND = KILOMETERS_PER_SCENE_UNIT / SECONDS_PER_FRAME;
 
 function orbitPositionToScene(position = {}, target = new THREE.Vector3()) {
   const x = position.x ?? 0;
@@ -46,4 +48,52 @@ function sampleKeplerOrbit(elements, segments = DEFAULT_ORBIT_SEGMENTS) {
   return points;
 }
 
-export { orbitPositionToScene, sampleKeplerOrbit };
+function estimateOrbitalVelocity(
+  elements,
+  time,
+  { deltaFrames = 0.01, orbitalTarget, kilometersPerSecondTarget } = {}
+) {
+  const orbitalVector = orbitalTarget ?? new THREE.Vector3();
+  const kilometersPerSecondVector =
+    kilometersPerSecondTarget === null
+      ? null
+      : kilometersPerSecondTarget ?? new THREE.Vector3();
+
+  orbitalVector.set(0, 0, 0);
+  if (kilometersPerSecondVector) {
+    kilometersPerSecondVector.set(0, 0, 0);
+  }
+
+  if (!elements) {
+    return { orbital: orbitalVector, kilometersPerSecond: kilometersPerSecondVector };
+  }
+
+  const frameTime = time ?? 0;
+  const clampedDelta = Math.max(Math.abs(deltaFrames), 1e-4);
+  const halfWindow = clampedDelta;
+
+  const previousState = propagateKepler(elements, frameTime - halfWindow);
+  const nextState = propagateKepler(elements, frameTime + halfWindow);
+
+  const prevPosition = previousState.position ?? { x: 0, y: 0, z: 0 };
+  const nextPosition = nextState.position ?? { x: 0, y: 0, z: 0 };
+  const invTwoDelta = 1 / (2 * halfWindow);
+
+  const vxScene = (nextPosition.x - prevPosition.x) * invTwoDelta;
+  const vyScene = (nextPosition.y - prevPosition.y) * invTwoDelta;
+  const vzScene = (nextPosition.z - prevPosition.z) * invTwoDelta;
+
+  orbitalVector.set(vxScene, vyScene, vzScene);
+
+  if (kilometersPerSecondVector) {
+    kilometersPerSecondVector.set(
+      vxScene * SCENE_TO_KILOMETERS_PER_SECOND,
+      vyScene * SCENE_TO_KILOMETERS_PER_SECOND,
+      vzScene * SCENE_TO_KILOMETERS_PER_SECOND
+    );
+  }
+
+  return { orbital: orbitalVector, kilometersPerSecond: kilometersPerSecondVector };
+}
+
+export { orbitPositionToScene, sampleKeplerOrbit, estimateOrbitalVelocity };

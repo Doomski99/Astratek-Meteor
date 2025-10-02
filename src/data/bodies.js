@@ -1,11 +1,8 @@
 import * as THREE from 'three';
 import { createKeplerElements, propagateKepler } from '../simulation/kepler.js';
 import { orbitPositionToScene, sampleKeplerOrbit } from '../simulation/orbitUtils.js';
+import { AU_TO_SCENE_UNITS, FRAMES_PER_SIMULATION_DAY } from '../simulation/scales.js';
 
-const AU_TO_SCENE_UNITS = 90;
-const FRAMES_PER_SECOND = 60;
-const SIMULATION_SECONDS_PER_DAY = 2.5;
-const FRAMES_PER_SIMULATION_DAY = FRAMES_PER_SECOND * SIMULATION_SECONDS_PER_DAY;
 const DEG_TO_RAD = Math.PI / 180;
 const DEFAULT_VISUAL_SCALE = 0.02;
 const DEFAULT_TNT_YIELD_MT = 0;
@@ -543,7 +540,15 @@ const planetOrbitCatalog = Object.fromEntries(
 
 function createAsteroidEntries(catalog = []) {
   return catalog.map((data, index) => ({
-    data,
+    data: {
+      ...data,
+      velocity:
+        data.velocity ?? {
+          orbital: { x: 0, y: 0, z: 0 },
+          kilometersPerSecond: { x: 0, y: 0, z: 0 },
+          speedKilometersPerSecond: 0
+        }
+    },
     mesh: null,
     keplerElements: createKeplerElements(data.orbit),
     templateIndex: index
