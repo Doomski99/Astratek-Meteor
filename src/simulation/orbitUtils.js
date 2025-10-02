@@ -5,6 +5,11 @@ import { KILOMETERS_PER_SCENE_UNIT, SECONDS_PER_FRAME } from './scales.js';
 const DEFAULT_ORBIT_SEGMENTS = 256;
 const SCENE_TO_KILOMETERS_PER_SECOND = KILOMETERS_PER_SCENE_UNIT / SECONDS_PER_FRAME;
 
+function orbitVectorToScene({ x = 0, y = 0, z = 0 }, target = new THREE.Vector3()) {
+  target.set(x, z, -y);
+  return target;
+}
+
 function orbitPositionToScene(position = {}, target = new THREE.Vector3()) {
   const x = position.x ?? 0;
   const y = position.y ?? 0;
@@ -13,7 +18,7 @@ function orbitPositionToScene(position = {}, target = new THREE.Vector3()) {
   return target;
 }
 
-function sampleKeplerOrbit(elements, segments = DEFAULT_ORBIT_SEGMENTS) {
+function sampleKeplerOrbitWithMeta(elements, segments = DEFAULT_ORBIT_SEGMENTS) {
   if (!elements) {
     return [];
   }
@@ -42,10 +47,19 @@ function sampleKeplerOrbit(elements, segments = DEFAULT_ORBIT_SEGMENTS) {
     const { position } = propagateKepler(elementsForSample, timeForSample);
     const vector = new THREE.Vector3();
     orbitPositionToScene(position, vector);
-    points.push(vector);
+    points.push({
+      position: vector,
+      index,
+      time: timeForSample,
+      meanAnomaly: targetMeanAnomaly
+    });
   }
 
   return points;
+}
+
+function sampleKeplerOrbit(elements, segments = DEFAULT_ORBIT_SEGMENTS) {
+  return sampleKeplerOrbitWithMeta(elements, segments).map(sample => sample.position);
 }
 
 function estimateOrbitalVelocity(
@@ -112,10 +126,10 @@ function estimateOrbitIntersection(
 
   const samplesA = Array.isArray(orbitASamples) && orbitASamples.length > 0
     ? orbitASamples
-    : sampleKeplerOrbit(elementsA, segments);
+    : sampleKeplerOrbitWithMeta(elementsA, segments);
   const samplesB = Array.isArray(orbitBSamples) && orbitBSamples.length > 0
     ? orbitBSamples
-    : sampleKeplerOrbit(elementsB, segments);
+    : sampleKeplerOrbitWithMeta(elementsB, segments);
 
   if (!samplesA.length || !samplesB.length) {
     return { intersects: false, minimumDistance: Infinity };
@@ -125,18 +139,52 @@ function estimateOrbitIntersection(
   let minimumDistanceSquared = Infinity;
   let closestPointA = null;
   let closestPointB = null;
+  let closestSampleA = null;
+  let closestSampleB = null;
+  let closestSampleIndexA = null;
+  let closestSampleIndexB = null;
+
+  const getSamplePosition = sample => {
+    if (!sample) {
+      return null;
+    }
+
+    if (sample instanceof THREE.Vector3) {
+      return sample;
+    }
+
+    if (sample.position instanceof THREE.Vector3) {
+      return sample.position;
+    }
+
+    return null;
+  };
 
   for (let indexA = 0; indexA < samplesA.length; indexA += 1) {
-    const pointA = samplesA[indexA];
+    const sampleA = samplesA[indexA];
+    const pointA = getSamplePosition(sampleA);
+
+    if (!pointA) {
+      continue;
+    }
 
     for (let indexB = 0; indexB < samplesB.length; indexB += 1) {
-      const pointB = samplesB[indexB];
+      const sampleB = samplesB[indexB];
+      const pointB = getSamplePosition(sampleB);
+
+      if (!pointB) {
+        continue;
+      }
       const distanceSquared = pointA.distanceToSquared(pointB);
 
       if (distanceSquared < minimumDistanceSquared) {
         minimumDistanceSquared = distanceSquared;
         closestPointA = pointA.clone();
         closestPointB = pointB.clone();
+        closestSampleA = sampleA;
+        closestSampleB = sampleB;
+        closestSampleIndexA = sampleA?.index ?? indexA;
+        closestSampleIndexB = sampleB?.index ?? indexB;
       }
 
       if (minimumDistanceSquared <= toleranceSquared) {
@@ -144,7 +192,11 @@ function estimateOrbitIntersection(
           intersects: true,
           minimumDistance: Math.sqrt(minimumDistanceSquared),
           closestPointA,
-          closestPointB
+          closestPointB,
+          closestSampleA,
+          closestSampleB,
+          closestSampleIndexA,
+          closestSampleIndexB
         };
       }
     }
@@ -154,8 +206,19 @@ function estimateOrbitIntersection(
     intersects: minimumDistanceSquared <= toleranceSquared,
     minimumDistance: Math.sqrt(minimumDistanceSquared),
     closestPointA,
-    closestPointB
+    closestPointB,
+    closestSampleA,
+    closestSampleB,
+    closestSampleIndexA,
+    closestSampleIndexB
   };
 }
 
-export { orbitPositionToScene, sampleKeplerOrbit, estimateOrbitalVelocity, estimateOrbitIntersection };
+export {
+  orbitPositionToScene,
+  orbitVectorToScene,
+  sampleKeplerOrbit,
+  sampleKeplerOrbitWithMeta,
+  estimateOrbitalVelocity,
+  estimateOrbitIntersection
+};

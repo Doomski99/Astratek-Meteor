@@ -55,12 +55,17 @@ import {
 import { createKeplerElements, propagateKepler } from './simulation/kepler.js';
 import {
   orbitPositionToScene,
+  orbitVectorToScene,
   estimateOrbitalVelocity,
-  sampleKeplerOrbit,
+  sampleKeplerOrbitWithMeta,
   estimateOrbitIntersection
 } from './simulation/orbitUtils.js';
 import { updateEarthVelocity } from './simulation/referenceFrames.js';
-import { EARTH_RADIUS_SCENE_UNITS, EARTH_COLLISION_TOLERANCE_SCENE_UNITS } from './simulation/scales.js';
+import {
+  EARTH_RADIUS_SCENE_UNITS,
+  EARTH_COLLISION_TOLERANCE_SCENE_UNITS,
+  SECONDS_PER_FRAME
+} from './simulation/scales.js';
 
 const cubeTextureLoader = new THREE.CubeTextureLoader();
 const textureLoader = new THREE.TextureLoader();
@@ -90,10 +95,12 @@ const spinTimeChannel = simulationClock.createChannel(settings.acceleration * FR
 
 const earthOrbitDefinition = planetOrbitCatalog.Earth ?? null;
 const earthKeplerElements = earthOrbitDefinition ? createKeplerElements(earthOrbitDefinition) : null;
-const earthOrbitSamples = earthKeplerElements ? sampleKeplerOrbit(earthKeplerElements, 512) : [];
+const earthOrbitSamplesWithMeta = earthKeplerElements
+  ? sampleKeplerOrbitWithMeta(earthKeplerElements, 512)
+  : [];
 const earthIntersectionOptions = {
   tolerance: EARTH_COLLISION_TOLERANCE_SCENE_UNITS,
-  orbitBSamples: earthOrbitSamples
+  orbitBSamples: earthOrbitSamplesWithMeta
 };
 
 initTimeControls(simulationClock);
@@ -1048,6 +1055,13 @@ function applyEarthIntersectionResult(entry, intersection) {
 
   const closestPointA = intersection?.closestPointA ? intersection.closestPointA.clone() : null;
   const closestPointB = intersection?.closestPointB ? intersection.closestPointB.clone() : null;
+  const closestSampleA = intersection?.closestSampleA ?? null;
+  const closestSampleIndexA = Number.isInteger(intersection?.closestSampleIndexA)
+    ? intersection.closestSampleIndexA
+    : Number.isInteger(closestSampleA?.index)
+      ? closestSampleA.index
+      : null;
+  const impactOrbitFrames = Number.isFinite(closestSampleA?.time) ? closestSampleA.time : null;
 
   let impactNormal = null;
   if (closestPointA && closestPointB) {
@@ -1061,12 +1075,57 @@ function applyEarthIntersectionResult(entry, intersection) {
     impactNormal = closestPointB.clone().normalize();
   }
 
+  const intersects = Boolean(intersection?.intersects);
+
+  let asteroidImpactState = null;
+  if (intersects && entry?.keplerElements && Number.isFinite(impactOrbitFrames)) {
+    const propagated = propagateKepler(entry.keplerElements, impactOrbitFrames);
+    const orbitalPosition = new THREE.Vector3(
+      propagated.position?.x ?? 0,
+      propagated.position?.y ?? 0,
+      propagated.position?.z ?? 0
+    );
+    const scenePosition = orbitPositionToScene(propagated.position, new THREE.Vector3());
+
+    const velocityEstimate = estimateOrbitalVelocity(entry.keplerElements, impactOrbitFrames);
+    const orbitalVelocity = velocityEstimate.orbital.clone();
+    const sceneVelocity = orbitVectorToScene(orbitalVelocity, new THREE.Vector3());
+
+    let kilometersPerSecondVector = null;
+    let kilometersPerSecondSceneVector = null;
+    let speedKilometersPerSecond = null;
+
+    if (velocityEstimate.kilometersPerSecond) {
+      kilometersPerSecondVector = velocityEstimate.kilometersPerSecond.clone();
+      kilometersPerSecondSceneVector = orbitVectorToScene(
+        kilometersPerSecondVector,
+        new THREE.Vector3()
+      );
+      speedKilometersPerSecond = kilometersPerSecondVector.length();
+    }
+
+    asteroidImpactState = {
+      orbitFrames: impactOrbitFrames,
+      simulationSeconds: impactOrbitFrames * SECONDS_PER_FRAME,
+      timestampMs: impactOrbitFrames * SECONDS_PER_FRAME * 1000,
+      sampleIndex: closestSampleIndexA,
+      orbitalPosition,
+      scenePosition,
+      orbitalVelocity,
+      sceneVelocity,
+      kilometersPerSecond: kilometersPerSecondVector,
+      kilometersPerSecondScene: kilometersPerSecondSceneVector,
+      speedKilometersPerSecond
+    };
+  }
+
   const info = {
-    intersects: Boolean(intersection?.intersects),
+    intersects,
     minimumDistanceSceneUnits,
     thresholdSceneUnits,
     impactPoint: closestPointB,
-    impactNormal
+    impactNormal,
+    asteroidImpactState
   };
 
   entry.earthOrbitIntersection = info;
@@ -1076,7 +1135,22 @@ function applyEarthIntersectionResult(entry, intersection) {
       minimumDistanceSceneUnits: info.minimumDistanceSceneUnits,
       thresholdSceneUnits: info.thresholdSceneUnits,
       impactPoint: toPlainVector(info.impactPoint),
-      impactNormal: toPlainVector(info.impactNormal)
+      impactNormal: toPlainVector(info.impactNormal),
+      asteroidImpactState: asteroidImpactState
+        ? {
+            orbitFrames: asteroidImpactState.orbitFrames,
+            simulationSeconds: asteroidImpactState.simulationSeconds,
+            timestampMs: asteroidImpactState.timestampMs,
+            sampleIndex: asteroidImpactState.sampleIndex,
+            orbitalPosition: toPlainVector(asteroidImpactState.orbitalPosition),
+            scenePosition: toPlainVector(asteroidImpactState.scenePosition),
+            orbitalVelocity: toPlainVector(asteroidImpactState.orbitalVelocity),
+            sceneVelocity: toPlainVector(asteroidImpactState.sceneVelocity),
+            kilometersPerSecond: toPlainVector(asteroidImpactState.kilometersPerSecond),
+            kilometersPerSecondScene: toPlainVector(asteroidImpactState.kilometersPerSecondScene),
+            speedKilometersPerSecond: asteroidImpactState.speedKilometersPerSecond
+          }
+        : null
     };
   }
 

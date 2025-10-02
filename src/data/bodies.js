@@ -3,6 +3,7 @@ import { createKeplerElements, propagateKepler } from '../simulation/kepler.js';
 import {
   orbitPositionToScene,
   sampleKeplerOrbit,
+  sampleKeplerOrbitWithMeta,
   estimateOrbitIntersection
 } from '../simulation/orbitUtils.js';
 import { AU_TO_SCENE_UNITS, FRAMES_PER_SIMULATION_DAY, EARTH_COLLISION_TOLERANCE_SCENE_UNITS } from '../simulation/scales.js';
@@ -544,7 +545,10 @@ const planetOrbitCatalog = Object.fromEntries(
 
 const earthOrbitDefinition = planetOrbitCatalog.Earth ?? null;
 const earthKeplerElements = earthOrbitDefinition ? createKeplerElements(earthOrbitDefinition) : null;
-const earthOrbitSamples = earthKeplerElements ? sampleKeplerOrbit(earthKeplerElements, 512) : [];
+const earthOrbitSamplesWithMeta = earthKeplerElements
+  ? sampleKeplerOrbitWithMeta(earthKeplerElements, 512)
+  : [];
+const earthOrbitSamples = earthOrbitSamplesWithMeta.map(sample => sample.position);
 
 function createAsteroidEntries(catalog = []) {
   return catalog.map((data, index) => {
@@ -553,7 +557,7 @@ function createAsteroidEntries(catalog = []) {
       keplerElements && earthKeplerElements
         ? estimateOrbitIntersection(keplerElements, earthKeplerElements, {
             tolerance: EARTH_COLLISION_TOLERANCE_SCENE_UNITS,
-            orbitBSamples: earthOrbitSamples
+            orbitBSamples: earthOrbitSamplesWithMeta
           })
         : { intersects: false, minimumDistance: Infinity };
 
