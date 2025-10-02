@@ -108,6 +108,7 @@ const earthIntersectionOptions = {
   orbitBSamples: earthOrbitSamplesWithMeta
 };
 
+let impactTimeWidget = null;
 const timeControls = initTimeControls(simulationClock);
 impactTimeWidget = createImpactTimeWidget({
   clock: simulationClock,
@@ -463,7 +464,6 @@ const activeAsteroidIds = new Set();
 const planetEntries = [];
 let asteroidPanel = null;
 const asteroidInfoPanel = initAsteroidInfoPanel();
-let impactTimeWidget = null;
 
 function updateAsteroidPanelMetadata(entry) {
   if (!asteroidPanel || !entry?.data?.id) {
