@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { propagateKepler } from './kepler.js';
 import { orbitPositionToScene, sampleKeplerOrbit, estimateOrbitalVelocity } from './orbitUtils.js';
+import { getEarthVelocitySnapshot } from './referenceFrames.js';
 
 const asteroidPackUrl = new URL('../asteroids/asteroidPack.glb', import.meta.url).href;
 
@@ -29,9 +30,22 @@ function ensureVelocityContainers(entry) {
     entry.velocityKilometersPerSecond = new THREE.Vector3();
   }
 
+  if (!entry.velocityRelativeKilometersPerSecond) {
+    entry.velocityRelativeKilometersPerSecond = new THREE.Vector3();
+  }
+
   if (!entry.data.velocity) {
     entry.data.velocity = {
       orbital: { x: 0, y: 0, z: 0 },
+      kilometersPerSecond: { x: 0, y: 0, z: 0 },
+      speedKilometersPerSecond: 0,
+      relative: {
+        kilometersPerSecond: { x: 0, y: 0, z: 0 },
+        speedKilometersPerSecond: 0
+      }
+    };
+  } else if (!entry.data.velocity.relative) {
+    entry.data.velocity.relative = {
       kilometersPerSecond: { x: 0, y: 0, z: 0 },
       speedKilometersPerSecond: 0
     };
@@ -51,6 +65,7 @@ function updateAsteroidTransform(entry, timing = { orbitFrames: 0, spinFrames: 0
     }
     entry.velocityOrbital.set(0, 0, 0);
     entry.velocityKilometersPerSecond.set(0, 0, 0);
+    entry.velocityRelativeKilometersPerSecond.set(0, 0, 0);
     velocityData.orbital.x = 0;
     velocityData.orbital.y = 0;
     velocityData.orbital.z = 0;
@@ -58,6 +73,10 @@ function updateAsteroidTransform(entry, timing = { orbitFrames: 0, spinFrames: 0
     velocityData.kilometersPerSecond.y = 0;
     velocityData.kilometersPerSecond.z = 0;
     velocityData.speedKilometersPerSecond = 0;
+    velocityData.relative.kilometersPerSecond.x = 0;
+    velocityData.relative.kilometersPerSecond.y = 0;
+    velocityData.relative.kilometersPerSecond.z = 0;
+    velocityData.relative.speedKilometersPerSecond = 0;
   } else {
     const { position } = propagateKepler(keplerElements, orbitFrames);
     if (entry.mesh) {
@@ -82,6 +101,27 @@ function updateAsteroidTransform(entry, timing = { orbitFrames: 0, spinFrames: 0
       velocityData.kilometersPerSecond.y = 0;
       velocityData.kilometersPerSecond.z = 0;
       velocityData.speedKilometersPerSecond = 0;
+    }
+
+    const earthVelocity = getEarthVelocitySnapshot();
+    const earthKilometersPerSecond = earthVelocity?.kilometersPerSecond;
+
+    if (velocity.kilometersPerSecond && earthKilometersPerSecond) {
+      entry.velocityRelativeKilometersPerSecond.set(
+        velocity.kilometersPerSecond.x - (earthKilometersPerSecond.x ?? 0),
+        velocity.kilometersPerSecond.y - (earthKilometersPerSecond.y ?? 0),
+        velocity.kilometersPerSecond.z - (earthKilometersPerSecond.z ?? 0)
+      );
+      velocityData.relative.kilometersPerSecond.x = entry.velocityRelativeKilometersPerSecond.x;
+      velocityData.relative.kilometersPerSecond.y = entry.velocityRelativeKilometersPerSecond.y;
+      velocityData.relative.kilometersPerSecond.z = entry.velocityRelativeKilometersPerSecond.z;
+      velocityData.relative.speedKilometersPerSecond = entry.velocityRelativeKilometersPerSecond.length();
+    } else {
+      entry.velocityRelativeKilometersPerSecond.set(0, 0, 0);
+      velocityData.relative.kilometersPerSecond.x = 0;
+      velocityData.relative.kilometersPerSecond.y = 0;
+      velocityData.relative.kilometersPerSecond.z = 0;
+      velocityData.relative.speedKilometersPerSecond = 0;
     }
   }
 

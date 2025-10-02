@@ -546,7 +546,11 @@ function createAsteroidEntries(catalog = []) {
         data.velocity ?? {
           orbital: { x: 0, y: 0, z: 0 },
           kilometersPerSecond: { x: 0, y: 0, z: 0 },
-          speedKilometersPerSecond: 0
+          speedKilometersPerSecond: 0,
+          relative: {
+            kilometersPerSecond: { x: 0, y: 0, z: 0 },
+            speedKilometersPerSecond: 0
+          }
         }
     },
     mesh: null,
