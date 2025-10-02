@@ -1,62 +1,189 @@
 import * as THREE from 'three';
-import { createKeplerElements } from '../simulation/kepler.js';
+import { createKeplerElements, propagateKepler } from '../simulation/kepler.js';
+import { orbitPositionToScene, sampleKeplerOrbit } from '../simulation/orbitUtils.js';
 
-const asteroidCatalog = [
-  {
-    id: 'apophis',
-    name: '99942 Apophis',
-    designation: 'Apophis',
-    tntYieldMt: 800,
-    orbit: {
-      semiMajorAxis: 150,
-      eccentricity: 0.191,
-      inclination: 3.331,
-      longitudeOfAscendingNode: 204.0,
-      argumentOfPeriapsis: 126.4,
-      meanAnomalyAtEpoch: 0,
-      period: 50000
-    },
-    spinRate: 0.0015,
-    visualScale: 0.02,
-    description: 'Potentially hazardous Aten asteroid with a close 2029 approach.'
-  },
-  {
-    id: 'bennu',
-    name: '101955 Bennu',
-    designation: 'Bennu',
-    tntYieldMt: 4.5,
-    orbit: {
-      semiMajorAxis: 120,
-      eccentricity: 0.203,
-      inclination: 6.034,
-      longitudeOfAscendingNode: 2.06,
-      argumentOfPeriapsis: 66.2,
-      meanAnomalyAtEpoch: 45,
-      period: 70000
-    },
-    spinRate: 0.0018,
-    visualScale: 0.024,
-    description: 'Carbonaceous near-Earth asteroid sampled by OSIRIS-REx.'
-  },
-  {
-    id: 'didymos',
-    name: '65803 Didymos',
-    designation: 'Didymos',
-    tntYieldMt: 15.0,
-    orbit: {
-      semiMajorAxis: 180,
-      eccentricity: 0.083,
-      inclination: 3.408,
-      longitudeOfAscendingNode: 73.2,
-      argumentOfPeriapsis: 319.7,
-      meanAnomalyAtEpoch: 120,
-      period: 90000
-    },
-    spinRate: 0.0012,
-    visualScale: 0.03,
-    description: 'Binary system primary targeted by the DART mission.'
+const AU_TO_SCENE_UNITS = 90;
+const FRAMES_PER_SECOND = 60;
+const SIMULATION_SECONDS_PER_DAY = 2.5;
+const FRAMES_PER_SIMULATION_DAY = FRAMES_PER_SECOND * SIMULATION_SECONDS_PER_DAY;
+const DEG_TO_RAD = Math.PI / 180;
+const DEFAULT_VISUAL_SCALE = 0.02;
+const DEFAULT_TNT_YIELD_MT = 0;
+const PLANET_ORBIT_SEGMENTS = 256;
+
+function parseCsv(text) {
+  const source = typeof text === 'string' ? text : '';
+  const input = source.charCodeAt(0) === 0xfeff ? source.slice(1) : source;
+  const rows = [];
+  let current = '';
+  let inQuotes = false;
+  let row = [];
+
+  for (let i = 0; i < input.length; i += 1) {
+    const char = input[i];
+
+    if (inQuotes) {
+      if (char === '"') {
+        const nextChar = input[i + 1];
+        if (nextChar === '"') {
+          current += '"';
+          i += 1;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        current += char;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      inQuotes = true;
+      continue;
+    }
+
+    if (char === ',') {
+      row.push(current);
+      current = '';
+      continue;
+    }
+
+    if (char === '\r') {
+      continue;
+    }
+
+    if (char === '\n') {
+      row.push(current);
+      if (row.some(field => field.trim() !== '')) {
+        rows.push(row);
+      }
+      row = [];
+      current = '';
+      continue;
+    }
+
+    current += char;
   }
-];
+
+  if (current !== '' || row.length > 0) {
+    row.push(current);
+    if (row.some(field => field.trim() !== '')) {
+      rows.push(row);
+    }
+  }
+
+  return rows;
+}
+
+function parseNumber(value) {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const parsed = Number.parseFloat(value.trim());
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function convertMeanMotion(degPerDay) {
+  if (!Number.isFinite(degPerDay)) {
+    return 0;
+  }
+
+  return (degPerDay * DEG_TO_RAD) / FRAMES_PER_SIMULATION_DAY;
+}
+
+function transformAsteroidRow(row, rowIndex) {
+  if (!Array.isArray(row)) {
+    return null;
+  }
+
+  const [
+    idValue,
+    nameValue,
+    eccentricityValue,
+    semiMajorAxisValue,
+    inclinationValue,
+    ascendingNodeValue,
+    argumentValue,
+    meanAnomalyValue,
+    meanMotionValue
+  ] = row;
+
+  const id = (idValue ?? '').toString().trim();
+  if (!id) {
+    console.warn(`Skipping asteroid row ${rowIndex}: missing id`);
+    return null;
+  }
+
+  const semiMajorAxisAu = parseNumber(semiMajorAxisValue);
+  const eccentricity = parseNumber(eccentricityValue);
+  const inclination = parseNumber(inclinationValue);
+  const ascendingNode = parseNumber(ascendingNodeValue);
+  const argumentOfPeriapsis = parseNumber(argumentValue);
+  const meanAnomalyAtEpoch = parseNumber(meanAnomalyValue);
+  const meanMotionDegPerDay = parseNumber(meanMotionValue);
+
+  if (
+    !Number.isFinite(semiMajorAxisAu) ||
+    !Number.isFinite(eccentricity) ||
+    !Number.isFinite(inclination) ||
+    !Number.isFinite(ascendingNode) ||
+    !Number.isFinite(argumentOfPeriapsis) ||
+    !Number.isFinite(meanAnomalyAtEpoch)
+  ) {
+    console.warn(`Skipping asteroid row ${rowIndex}: missing orbital parameters`);
+    return null;
+  }
+
+  const semiMajorAxis = semiMajorAxisAu * AU_TO_SCENE_UNITS;
+  const orbit = {
+    semiMajorAxis,
+    eccentricity,
+    inclination,
+    longitudeOfAscendingNode: ascendingNode,
+    argumentOfPeriapsis,
+    meanAnomalyAtEpoch,
+    meanMotion: convertMeanMotion(meanMotionDegPerDay ?? 0)
+  };
+
+  return {
+    id,
+    name: (nameValue ?? '').toString().trim() || id,
+    tntYieldMt: DEFAULT_TNT_YIELD_MT,
+    visualScale: DEFAULT_VISUAL_SCALE,
+    orbit
+  };
+}
+
+async function loadAsteroidCatalog(url = '/data/asteroids.csv') {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch ${url}: ${response.status} ${response.statusText}`);
+    }
+
+    const csvText = await response.text();
+    const rows = parseCsv(csvText);
+    const asteroids = [];
+
+    rows.forEach((row, index) => {
+      const headerCandidate = row[0]?.trim().toLowerCase();
+      if (index === 0 && (headerCandidate === 'id' || headerCandidate === '#')) {
+        return;
+      }
+
+      const transformed = transformAsteroidRow(row, index + 1);
+      if (transformed) {
+        asteroids.push(transformed);
+      }
+    });
+
+    return asteroids;
+  } catch (error) {
+    console.error('Unable to load asteroid catalog:', error);
+    return [];
+  }
+}
 
 const planetData = {
   Mercury: {
@@ -145,34 +272,56 @@ const planetData = {
 function createPlanetFactory({ scene, textureLoader }) {
   const loader = textureLoader ?? new THREE.TextureLoader();
 
-  return function createPlanet(
-    planetName,
-    size,
-    position,
-    tilt,
-    texture,
-    bump,
-    ring,
-    atmosphere,
-    moons
-  ) {
-    let material;
-
+  function loadTextureMaterial(texture, bump) {
     if (texture instanceof THREE.Material) {
-      material = texture;
-    } else if (bump) {
-      material = new THREE.MeshPhongMaterial({
+      return texture;
+    }
+
+    if (bump) {
+      return new THREE.MeshPhongMaterial({
         map: loader.load(texture),
         bumpMap: loader.load(bump),
         bumpScale: 0.7
       });
-    } else {
-      material = new THREE.MeshPhongMaterial({
-        map: loader.load(texture)
-      });
     }
 
-    const name = planetName;
+    return new THREE.MeshPhongMaterial({ map: loader.load(texture) });
+  }
+
+  function createOrbitLine(elements, segments = PLANET_ORBIT_SEGMENTS) {
+    if (!elements) {
+      return null;
+    }
+
+    const points = sampleKeplerOrbit(elements, segments);
+    if (points.length === 0) {
+      return null;
+    }
+
+    const geometry = new THREE.BufferGeometry().setFromPoints(points);
+    const material = new THREE.LineBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.03
+    });
+
+    const line = new THREE.LineLoop(geometry, material);
+    line.frustumCulled = false;
+    return line;
+  }
+
+  return function createPlanet({
+    name: planetName,
+    size,
+    tilt = 0,
+    texture,
+    bump,
+    ring,
+    atmosphere,
+    moons,
+    orbit
+  }) {
+    const material = loadTextureMaterial(texture, bump);
     const geometry = new THREE.SphereGeometry(size, 32, 20);
     const planet = new THREE.Mesh(geometry, material);
     const planet3d = new THREE.Object3D();
@@ -182,20 +331,7 @@ function createPlanetFactory({ scene, textureLoader }) {
     let Atmosphere;
     let Ring;
 
-    planet.position.x = position;
     planet.rotation.z = (tilt * Math.PI) / 180;
-
-    const orbitPath = new THREE.EllipseCurve(0, 0, position, position, 0, 2 * Math.PI, false, 0);
-    const pathPoints = orbitPath.getPoints(100);
-    const orbitGeometry = new THREE.BufferGeometry().setFromPoints(pathPoints);
-    const orbitMaterial = new THREE.LineBasicMaterial({
-      color: 0xffffff,
-      transparent: true,
-      opacity: 0.03
-    });
-    const orbit = new THREE.LineLoop(orbitGeometry, orbitMaterial);
-    orbit.rotation.x = Math.PI / 2;
-    planetSystem.add(orbit);
 
     if (ring) {
       const RingGeo = new THREE.RingGeometry(ring.innerRadius, ring.outerRadius, 30);
@@ -205,7 +341,6 @@ function createPlanetFactory({ scene, textureLoader }) {
       });
       Ring = new THREE.Mesh(RingGeo, RingMat);
       planetSystem.add(Ring);
-      Ring.position.x = position;
       Ring.rotation.x = -0.5 * Math.PI;
       Ring.rotation.y = -(tilt * Math.PI) / 180;
     }
@@ -252,14 +387,161 @@ function createPlanetFactory({ scene, textureLoader }) {
       });
     }
 
+    const keplerElements = orbit ? createKeplerElements(orbit) : null;
+    const orbitLine = createOrbitLine(keplerElements);
+
+    if (orbitLine) {
+      planet3d.add(orbitLine);
+    }
+
     planet3d.add(planetSystem);
     scene.add(planet3d);
 
-    return { name, planet, planet3d, Atmosphere, moons, planetSystem, Ring };
+    if (keplerElements) {
+      const { position } = propagateKepler(keplerElements, keplerElements.epoch ?? 0);
+      orbitPositionToScene(position, planetSystem.position);
+    }
+
+    return {
+      name: planetName,
+      planet,
+      planet3d,
+      Atmosphere,
+      moons,
+      planetSystem,
+      Ring,
+      keplerElements,
+      orbitLine
+    };
   };
 }
 
-function createAsteroidEntries(catalog = asteroidCatalog) {
+const planetOrbitDefinitions = {
+  Mercury: {
+    semiMajorAxisAu: 0.38709927,
+    eccentricity: 0.20563593,
+    inclination: 7.00497902,
+    longitudeOfAscendingNode: 48.33076593,
+    longitudeOfPerihelion: 77.45779628,
+    meanLongitude: 252.2503235,
+    meanMotion: 4.09233445
+  },
+  Venus: {
+    semiMajorAxisAu: 0.72333566,
+    eccentricity: 0.00677672,
+    inclination: 3.39467605,
+    longitudeOfAscendingNode: 76.67984255,
+    longitudeOfPerihelion: 131.60246718,
+    meanLongitude: 181.9790995,
+    meanMotion: 1.60213034
+  },
+  Earth: {
+    semiMajorAxisAu: 1.00000261,
+    eccentricity: 0.01671123,
+    inclination: -0.00001531,
+    longitudeOfAscendingNode: -11.26064,
+    longitudeOfPerihelion: 102.93768193,
+    meanLongitude: 100.46457166,
+    meanMotion: 0.98564736
+  },
+  Mars: {
+    semiMajorAxisAu: 1.52371034,
+    eccentricity: 0.0933941,
+    inclination: 1.84969142,
+    longitudeOfAscendingNode: 49.57854,
+    longitudeOfPerihelion: 336.04084,
+    meanLongitude: 355.453432,
+    meanMotion: 0.52403293
+  },
+  Jupiter: {
+    semiMajorAxisAu: 5.202887,
+    eccentricity: 0.04838624,
+    inclination: 1.30439695,
+    longitudeOfAscendingNode: 100.47390909,
+    longitudeOfPerihelion: 14.72847983,
+    meanLongitude: 34.39644,
+    meanMotion: 0.08308529
+  },
+  Saturn: {
+    semiMajorAxisAu: 9.53667594,
+    eccentricity: 0.05386179,
+    inclination: 2.48599187,
+    longitudeOfAscendingNode: 113.66242448,
+    longitudeOfPerihelion: 92.59887831,
+    meanLongitude: 49.954244,
+    meanMotion: 0.03344414
+  },
+  Uranus: {
+    semiMajorAxisAu: 19.18916464,
+    eccentricity: 0.04725744,
+    inclination: 0.77263783,
+    longitudeOfAscendingNode: 74.01692503,
+    longitudeOfPerihelion: 170.9542763,
+    meanLongitude: 313.23810451,
+    meanMotion: 0.011718015
+  },
+  Neptune: {
+    semiMajorAxisAu: 30.06992276,
+    eccentricity: 0.00859048,
+    inclination: 1.77004347,
+    longitudeOfAscendingNode: 131.78422574,
+    longitudeOfPerihelion: 44.96476227,
+    meanLongitude: 304.88003,
+    meanMotion: 0.005995147
+  },
+  Pluto: {
+    semiMajorAxisAu: 39.48211675,
+    eccentricity: 0.2488273,
+    inclination: 17.14001206,
+    longitudeOfAscendingNode: 110.30393684,
+    longitudeOfPerihelion: 224.06891629,
+    meanLongitude: 238.92903833,
+    meanMotion: 0.0039640155
+  }
+};
+
+function normalizeAngleDegrees(value) {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+
+  const normalized = value % 360;
+  return normalized < 0 ? normalized + 360 : normalized;
+}
+
+function transformPlanetOrbit(definition) {
+  if (!definition) {
+    return null;
+  }
+
+  const semiMajorAxis = (definition.semiMajorAxisAu ?? 0) * AU_TO_SCENE_UNITS;
+  const eccentricity = definition.eccentricity ?? 0;
+  const inclination = definition.inclination ?? 0;
+  const longitudeOfAscendingNode = definition.longitudeOfAscendingNode ?? 0;
+  const argumentOfPeriapsis =
+    normalizeAngleDegrees((definition.longitudeOfPerihelion ?? 0) - (definition.longitudeOfAscendingNode ?? 0));
+  const meanAnomalyAtEpoch = normalizeAngleDegrees(
+    (definition.meanLongitude ?? 0) - (definition.longitudeOfPerihelion ?? 0)
+  );
+  const meanMotion = convertMeanMotion(definition.meanMotion ?? 0);
+
+  return {
+    semiMajorAxis,
+    eccentricity,
+    inclination,
+    longitudeOfAscendingNode,
+    argumentOfPeriapsis,
+    meanAnomalyAtEpoch,
+    meanMotion,
+    epoch: 0
+  };
+}
+
+const planetOrbitCatalog = Object.fromEntries(
+  Object.entries(planetOrbitDefinitions).map(([name, definition]) => [name, transformPlanetOrbit(definition)])
+);
+
+function createAsteroidEntries(catalog = []) {
   return catalog.map((data, index) => ({
     data,
     mesh: null,
@@ -268,4 +550,10 @@ function createAsteroidEntries(catalog = asteroidCatalog) {
   }));
 }
 
-export { asteroidCatalog, planetData, createPlanetFactory, createAsteroidEntries };
+export {
+  loadAsteroidCatalog,
+  planetData,
+  createPlanetFactory,
+  createAsteroidEntries,
+  planetOrbitCatalog
+};

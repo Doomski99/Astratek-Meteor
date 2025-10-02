@@ -1,10 +1,12 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { propagateKepler } from './kepler.js';
+import { orbitPositionToScene, sampleKeplerOrbit } from './orbitUtils.js';
 
 const asteroidPackUrl = new URL('../asteroids/asteroidPack.glb', import.meta.url).href;
 
 const ASTEROID_SCALE_MULTIPLIER = 15;
+const DEFAULT_ORBIT_SEGMENTS = 256;
 
 function getYieldBand(tntMt) {
   if (tntMt <= 1) {
@@ -30,7 +32,7 @@ function updateAsteroidTransform(entry, timing = { orbitFrames: 0, spinFrames: 0
     entry.mesh.position.set(0, 0, 0);
   } else {
     const { position } = propagateKepler(keplerElements, orbitFrames);
-    entry.mesh.position.set(position.x, position.y, position.z);
+    orbitPositionToScene(position, entry.mesh.position);
   }
 
   const spinRate = entry.data.spinRate ?? 0.001;
@@ -38,25 +40,13 @@ function updateAsteroidTransform(entry, timing = { orbitFrames: 0, spinFrames: 0
   entry.mesh.rotation.y = baseRotation + spinRate * (timing.spinFrames ?? 0);
 }
 
-function getTrajectoryPoints(entry, earthWorldPosition, elevation = 20) {
-  if (!entry.mesh) {
+function getTrajectoryPoints(entry, segments = DEFAULT_ORBIT_SEGMENTS) {
+  const keplerElements = entry?.keplerElements;
+  if (!keplerElements) {
     return [];
   }
 
-  const asteroidPosition = new THREE.Vector3();
-  const midpoint = new THREE.Vector3();
-
-  entry.mesh.getWorldPosition(asteroidPosition);
-  midpoint.copy(asteroidPosition).lerp(earthWorldPosition, 0.5);
-  midpoint.y += elevation;
-
-  const curve = new THREE.CatmullRomCurve3([
-    asteroidPosition.clone(),
-    midpoint.clone(),
-    earthWorldPosition.clone()
-  ]);
-
-  return curve.getPoints(32);
+  return sampleKeplerOrbit(keplerElements, segments);
 }
 
 function createTrajectoryLine(points) {
