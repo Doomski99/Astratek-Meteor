@@ -60,7 +60,7 @@ import {
   estimateOrbitIntersection
 } from './simulation/orbitUtils.js';
 import { updateEarthVelocity } from './simulation/referenceFrames.js';
-import { EARTH_RADIUS_SCENE_UNITS } from './simulation/scales.js';
+import { EARTH_RADIUS_SCENE_UNITS, EARTH_COLLISION_TOLERANCE_SCENE_UNITS } from './simulation/scales.js';
 
 const cubeTextureLoader = new THREE.CubeTextureLoader();
 const textureLoader = new THREE.TextureLoader();
@@ -92,7 +92,7 @@ const earthOrbitDefinition = planetOrbitCatalog.Earth ?? null;
 const earthKeplerElements = earthOrbitDefinition ? createKeplerElements(earthOrbitDefinition) : null;
 const earthOrbitSamples = earthKeplerElements ? sampleKeplerOrbit(earthKeplerElements, 512) : [];
 const earthIntersectionOptions = {
-  tolerance: EARTH_RADIUS_SCENE_UNITS,
+  tolerance: EARTH_COLLISION_TOLERANCE_SCENE_UNITS,
   orbitBSamples: earthOrbitSamples
 };
 
@@ -1006,7 +1006,7 @@ function createImpactOverlay(entry) {
   }
 
   removeImpactOverlay();
-  const earthRadius = earth?.planet?.geometry?.parameters?.radius ?? 6.4;
+  const earthRadius = earth?.planet?.geometry?.parameters?.radius ?? EARTH_RADIUS_SCENE_UNITS;
   asteroidImpactOverlay = createImpactOverlayMesh(entry, earthRadius, {
     colors: asteroidYieldColors,
     radiusScale: asteroidYieldRadiusScale
@@ -1026,7 +1026,7 @@ function applyEarthIntersectionResult(entry, intersection) {
     return {
       intersects: false,
       minimumDistanceSceneUnits: null,
-      thresholdSceneUnits: EARTH_RADIUS_SCENE_UNITS
+      thresholdSceneUnits: EARTH_COLLISION_TOLERANCE_SCENE_UNITS
     };
   }
 
@@ -1036,7 +1036,7 @@ function applyEarthIntersectionResult(entry, intersection) {
 
   const thresholdSceneUnits = Number.isFinite(earthIntersectionOptions?.tolerance)
     ? earthIntersectionOptions.tolerance
-    : EARTH_RADIUS_SCENE_UNITS;
+    : EARTH_COLLISION_TOLERANCE_SCENE_UNITS;
 
   const info = {
     intersects: Boolean(intersection?.intersects),
@@ -1111,7 +1111,8 @@ function retargetAsteroidForCollision(entry) {
 
   if (!entry.earthOrbitIntersection?.intersects) {
     const minDistance = entry.earthOrbitIntersection?.minimumDistanceSceneUnits;
-    const threshold = entry.earthOrbitIntersection?.thresholdSceneUnits ?? EARTH_RADIUS_SCENE_UNITS;
+    const threshold =
+      entry.earthOrbitIntersection?.thresholdSceneUnits ?? EARTH_COLLISION_TOLERANCE_SCENE_UNITS;
 
     if (Number.isFinite(minDistance) && minDistance > 0) {
       let ratio = threshold / minDistance;

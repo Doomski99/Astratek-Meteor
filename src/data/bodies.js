@@ -5,11 +5,7 @@ import {
   sampleKeplerOrbit,
   estimateOrbitIntersection
 } from '../simulation/orbitUtils.js';
-import {
-  AU_TO_SCENE_UNITS,
-  FRAMES_PER_SIMULATION_DAY,
-  EARTH_RADIUS_SCENE_UNITS
-} from '../simulation/scales.js';
+import { AU_TO_SCENE_UNITS, FRAMES_PER_SIMULATION_DAY, EARTH_COLLISION_TOLERANCE_SCENE_UNITS } from '../simulation/scales.js';
 
 const DEG_TO_RAD = Math.PI / 180;
 const DEFAULT_VISUAL_SCALE = 0.02;
@@ -556,7 +552,7 @@ function createAsteroidEntries(catalog = []) {
     const intersection =
       keplerElements && earthKeplerElements
         ? estimateOrbitIntersection(keplerElements, earthKeplerElements, {
-            tolerance: EARTH_RADIUS_SCENE_UNITS,
+            tolerance: EARTH_COLLISION_TOLERANCE_SCENE_UNITS,
             orbitBSamples: earthOrbitSamples
           })
         : { intersects: false, minimumDistance: Infinity };
@@ -568,7 +564,7 @@ function createAsteroidEntries(catalog = []) {
     const earthOrbitIntersection = {
       intersects: Boolean(intersection.intersects),
       minimumDistanceSceneUnits,
-      thresholdSceneUnits: earthKeplerElements ? EARTH_RADIUS_SCENE_UNITS : null
+      thresholdSceneUnits: earthKeplerElements ? EARTH_COLLISION_TOLERANCE_SCENE_UNITS : null
     };
 
     return {
