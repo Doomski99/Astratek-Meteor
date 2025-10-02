@@ -96,4 +96,55 @@ function estimateOrbitalVelocity(
   return { orbital: orbitalVector, kilometersPerSecond: kilometersPerSecondVector };
 }
 
-export { orbitPositionToScene, sampleKeplerOrbit, estimateOrbitalVelocity };
+function estimateOrbitIntersection(
+  elementsA,
+  elementsB,
+  {
+    segments = DEFAULT_ORBIT_SEGMENTS,
+    tolerance = 0,
+    orbitASamples,
+    orbitBSamples
+  } = {}
+) {
+  if (!elementsA || !elementsB) {
+    return { intersects: false, minimumDistance: Infinity };
+  }
+
+  const samplesA = Array.isArray(orbitASamples) && orbitASamples.length > 0
+    ? orbitASamples
+    : sampleKeplerOrbit(elementsA, segments);
+  const samplesB = Array.isArray(orbitBSamples) && orbitBSamples.length > 0
+    ? orbitBSamples
+    : sampleKeplerOrbit(elementsB, segments);
+
+  if (!samplesA.length || !samplesB.length) {
+    return { intersects: false, minimumDistance: Infinity };
+  }
+
+  const toleranceSquared = tolerance * tolerance;
+  let minimumDistanceSquared = Infinity;
+
+  for (let indexA = 0; indexA < samplesA.length; indexA += 1) {
+    const pointA = samplesA[indexA];
+
+    for (let indexB = 0; indexB < samplesB.length; indexB += 1) {
+      const pointB = samplesB[indexB];
+      const distanceSquared = pointA.distanceToSquared(pointB);
+
+      if (distanceSquared < minimumDistanceSquared) {
+        minimumDistanceSquared = distanceSquared;
+      }
+
+      if (minimumDistanceSquared <= toleranceSquared) {
+        return { intersects: true, minimumDistance: Math.sqrt(minimumDistanceSquared) };
+      }
+    }
+  }
+
+  return {
+    intersects: minimumDistanceSquared <= toleranceSquared,
+    minimumDistance: Math.sqrt(minimumDistanceSquared)
+  };
+}
+
+export { orbitPositionToScene, sampleKeplerOrbit, estimateOrbitalVelocity, estimateOrbitIntersection };
