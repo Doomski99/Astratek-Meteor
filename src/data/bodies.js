@@ -3,7 +3,6 @@ import { createKeplerElements, propagateKepler } from '../simulation/kepler.js';
 import {
   orbitPositionToScene,
   sampleKeplerOrbit,
-  sampleKeplerOrbitWithMeta,
   estimateOrbitIntersection
 } from '../simulation/orbitUtils.js';
 import { AU_TO_SCENE_UNITS, FRAMES_PER_SIMULATION_DAY, EARTH_COLLISION_TOLERANCE_SCENE_UNITS } from '../simulation/scales.js';
@@ -543,12 +542,39 @@ const planetOrbitCatalog = Object.fromEntries(
   Object.entries(planetOrbitDefinitions).map(([name, definition]) => [name, transformPlanetOrbit(definition)])
 );
 
+function cloneVector3(vector) {
+  return vector instanceof THREE.Vector3 ? vector.clone() : null;
+}
+
+function toPlainVector3(vector) {
+  if (!(vector instanceof THREE.Vector3)) {
+    return null;
+  }
+
+  return { x: vector.x, y: vector.y, z: vector.z };
+}
+
+function deriveImpactNormal(pointA, pointB) {
+  const hasPointA = pointA instanceof THREE.Vector3;
+  const hasPointB = pointB instanceof THREE.Vector3;
+
+  if (hasPointA && hasPointB) {
+    const relative = pointA.clone().sub(pointB);
+    if (relative.lengthSq() > 1e-8) {
+      return relative.normalize();
+    }
+  }
+
+  if (hasPointB && pointB.lengthSq() > 1e-8) {
+    return pointB.clone().normalize();
+  }
+
+  return null;
+}
+
 const earthOrbitDefinition = planetOrbitCatalog.Earth ?? null;
 const earthKeplerElements = earthOrbitDefinition ? createKeplerElements(earthOrbitDefinition) : null;
-const earthOrbitSamplesWithMeta = earthKeplerElements
-  ? sampleKeplerOrbitWithMeta(earthKeplerElements, 512)
-  : [];
-const earthOrbitSamples = earthOrbitSamplesWithMeta.map(sample => sample.position);
+const earthOrbitSamples = earthKeplerElements ? sampleKeplerOrbit(earthKeplerElements, 512) : [];
 
 function createAsteroidEntries(catalog = []) {
   return catalog.map((data, index) => {
@@ -557,7 +583,7 @@ function createAsteroidEntries(catalog = []) {
       keplerElements && earthKeplerElements
         ? estimateOrbitIntersection(keplerElements, earthKeplerElements, {
             tolerance: EARTH_COLLISION_TOLERANCE_SCENE_UNITS,
-            orbitBSamples: earthOrbitSamplesWithMeta
+            orbitBSamples: earthOrbitSamples
           })
         : { intersects: false, minimumDistance: Infinity };
 
@@ -565,22 +591,10 @@ function createAsteroidEntries(catalog = []) {
       ? intersection.minimumDistance
       : null;
 
-    const closestPointA = intersection.closestPointA ? intersection.closestPointA.clone() : null;
-    const closestPointB = intersection.closestPointB ? intersection.closestPointB.clone() : null;
-
-    let impactNormal = null;
-    if (closestPointA && closestPointB) {
-      const relativeVector = closestPointA.clone().sub(closestPointB);
-      if (relativeVector.lengthSq() > 1e-8) {
-        impactNormal = relativeVector.normalize();
-      }
-    }
-
-    if (!impactNormal && closestPointB && closestPointB.lengthSq() > 1e-8) {
-      impactNormal = closestPointB.clone().normalize();
-    }
-
     const thresholdSceneUnits = earthKeplerElements ? EARTH_COLLISION_TOLERANCE_SCENE_UNITS : null;
+    const closestPointA = cloneVector3(intersection.closestPointA);
+    const closestPointB = cloneVector3(intersection.closestPointB);
+    const impactNormal = deriveImpactNormal(closestPointA, closestPointB);
 
     const earthOrbitIntersection = {
       intersects: Boolean(intersection.intersects),
@@ -594,12 +608,8 @@ function createAsteroidEntries(catalog = []) {
       intersects: earthOrbitIntersection.intersects,
       minimumDistanceSceneUnits,
       thresholdSceneUnits,
-      impactPoint: closestPointB
-        ? { x: closestPointB.x, y: closestPointB.y, z: closestPointB.z }
-        : null,
-      impactNormal: impactNormal
-        ? { x: impactNormal.x, y: impactNormal.y, z: impactNormal.z }
-        : null
+      impactPoint: closestPointB ? toPlainVector3(closestPointB) : null,
+      impactNormal: impactNormal ? toPlainVector3(impactNormal) : null
     };
 
     return {

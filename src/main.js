@@ -42,7 +42,6 @@ import {
 import { initAsteroidPanel } from './ui/asteroidPanel.js';
 import { initAsteroidInfoPanel } from './ui/asteroidInfoPanel.js';
 import { initTimeControls } from './ui/timeControls.js';
-import { createImpactTimeWidget } from './ui/impactTimeWidget.js';
 import {
   createAsteroidMeshManager,
   updateAsteroidTransform,
@@ -56,17 +55,12 @@ import {
 import { createKeplerElements, propagateKepler } from './simulation/kepler.js';
 import {
   orbitPositionToScene,
-  orbitVectorToScene,
   estimateOrbitalVelocity,
-  sampleKeplerOrbitWithMeta,
+  sampleKeplerOrbit,
   estimateOrbitIntersection
 } from './simulation/orbitUtils.js';
 import { updateEarthVelocity } from './simulation/referenceFrames.js';
-import {
-  EARTH_RADIUS_SCENE_UNITS,
-  EARTH_COLLISION_TOLERANCE_SCENE_UNITS,
-  SECONDS_PER_FRAME
-} from './simulation/scales.js';
+import { EARTH_RADIUS_SCENE_UNITS, EARTH_COLLISION_TOLERANCE_SCENE_UNITS } from './simulation/scales.js';
 
 const cubeTextureLoader = new THREE.CubeTextureLoader();
 const textureLoader = new THREE.TextureLoader();
@@ -74,10 +68,6 @@ const textureLoader = new THREE.TextureLoader();
 const FRAMES_PER_SECOND = 60;
 const FRAMES_PER_MILLISECOND = FRAMES_PER_SECOND / 1000;
 const DEFAULT_SIMULATION_DURATION = 60 * 60 * 1000; // 1 hour in milliseconds
-const DEFAULT_ASTEROID_DENSITY_KG_PER_M3 = 3000;
-const DEFAULT_ASTEROID_DIAMETER_METERS = 160;
-const JOULES_PER_MEGATON_TNT = 4.184e15;
-const IMPACT_DURATION_PADDING_MS = 5 * 60 * 1000;
 
 scene.background = cubeTextureLoader.load([
   bgTexture3,
@@ -100,21 +90,13 @@ const spinTimeChannel = simulationClock.createChannel(settings.acceleration * FR
 
 const earthOrbitDefinition = planetOrbitCatalog.Earth ?? null;
 const earthKeplerElements = earthOrbitDefinition ? createKeplerElements(earthOrbitDefinition) : null;
-const earthOrbitSamplesWithMeta = earthKeplerElements
-  ? sampleKeplerOrbitWithMeta(earthKeplerElements, 512)
-  : [];
+const earthOrbitSamples = earthKeplerElements ? sampleKeplerOrbit(earthKeplerElements, 512) : [];
 const earthIntersectionOptions = {
   tolerance: EARTH_COLLISION_TOLERANCE_SCENE_UNITS,
-  orbitBSamples: earthOrbitSamplesWithMeta
+  orbitBSamples: earthOrbitSamples
 };
 
-let impactTimeWidget = null;
-const timeControls = initTimeControls(simulationClock);
-impactTimeWidget = createImpactTimeWidget({
-  clock: simulationClock,
-  orbitTimeChannel,
-  anchorElement: timeControls?.element ?? null
-});
+initTimeControls(simulationClock);
 
 const impactLegendElement = document.getElementById('impactLegendOverlay');
 if (impactLegendElement) {
@@ -412,11 +394,52 @@ const asteroidYieldColors = {
   high: 0xe74c3c
 };
 
-const asteroidYieldAngularRadii = {
-  low: 8,
-  medium: 18,
-  high: 32
+const asteroidImpactAngularRadii = {
+  low: 12,
+  medium: 25,
+  high: 40
 };
+
+function cloneVector3(value) {
+  if (value instanceof THREE.Vector3) {
+    return value.clone();
+  }
+
+  if (value && typeof value === 'object') {
+    const { x, y, z } = value;
+    if ([x, y, z].every(component => Number.isFinite(component))) {
+      return new THREE.Vector3(x, y, z);
+    }
+  }
+
+  return null;
+}
+
+function vector3ToPlain(vector) {
+  if (!(vector instanceof THREE.Vector3)) {
+    return null;
+  }
+
+  return { x: vector.x, y: vector.y, z: vector.z };
+}
+
+function deriveImpactNormal(pointA, pointB) {
+  const hasA = pointA instanceof THREE.Vector3;
+  const hasB = pointB instanceof THREE.Vector3;
+
+  if (hasA && hasB) {
+    const relative = pointA.clone().sub(pointB);
+    if (relative.lengthSq() > 1e-8) {
+      return relative.normalize();
+    }
+  }
+
+  if (hasB && pointB.lengthSq() > 1e-8) {
+    return pointB.clone().normalize();
+  }
+
+  return null;
+}
 
 const defaultAsteroidCameraOffset = new THREE.Vector3(25, 15, 25);
 const asteroidCameraOffsetDirection = defaultAsteroidCameraOffset.clone().normalize();
@@ -1027,7 +1050,7 @@ function createImpactOverlay(entry) {
   const earthRadius = earth?.planet?.geometry?.parameters?.radius ?? EARTH_RADIUS_SCENE_UNITS;
   asteroidImpactOverlay = createImpactOverlayMesh(entry, earthRadius, {
     colors: asteroidYieldColors,
-    angularRadii: asteroidYieldAngularRadii
+    angularRadii: asteroidImpactAngularRadii
   });
 
   if (earth?.planet) {
@@ -1037,124 +1060,6 @@ function createImpactOverlay(entry) {
   }
 
   setImpactLegendVisible(true);
-}
-
-function toPlainVector(vector) {
-  if (!vector) {
-    return null;
-  }
-
-  return { x: vector.x, y: vector.y, z: vector.z };
-}
-
-function getFirstFiniteNumber(...values) {
-  for (const candidate of values) {
-    const number = typeof candidate === 'number' ? candidate : Number(candidate);
-    if (Number.isFinite(number)) {
-      return number;
-    }
-  }
-
-  return null;
-}
-
-function estimateAsteroidMassKg(entry) {
-  const data = entry?.data ?? {};
-  const massCandidates = [data.impactMassKg, data.massKg, data.mass, data.estimatedMassKg];
-
-  for (const candidate of massCandidates) {
-    if (Number.isFinite(candidate) && candidate > 0) {
-      return candidate;
-    }
-  }
-
-  const density =
-    Number.isFinite(data.densityKgPerM3) && data.densityKgPerM3 > 0
-      ? data.densityKgPerM3
-      : DEFAULT_ASTEROID_DENSITY_KG_PER_M3;
-
-  const diameterMeters = getFirstFiniteNumber(
-    data.impactDiameterMeters,
-    data.estimatedDiameterMeters,
-    data.diameterMeters,
-    Number.isFinite(data.estimatedDiameterKm) ? data.estimatedDiameterKm * 1000 : null,
-    Number.isFinite(data.diameterKm) ? data.diameterKm * 1000 : null
-  );
-
-  if (Number.isFinite(diameterMeters) && diameterMeters > 0) {
-    const radius = diameterMeters / 2;
-    const volume = (4 / 3) * Math.PI * radius * radius * radius;
-    return volume * density;
-  }
-
-  const defaultRadius = DEFAULT_ASTEROID_DIAMETER_METERS / 2;
-  const defaultVolume = (4 / 3) * Math.PI * defaultRadius * defaultRadius * defaultRadius;
-  return defaultVolume * density;
-}
-
-function calculateImpactYieldMegatons(entry, impactState) {
-  if (!entry || !impactState) {
-    return null;
-  }
-
-  const speedKilometersPerSecond = Number.isFinite(impactState.relativeSpeedKilometersPerSecond)
-    ? impactState.relativeSpeedKilometersPerSecond
-    : impactState.speedKilometersPerSecond;
-
-  if (!Number.isFinite(speedKilometersPerSecond) || speedKilometersPerSecond <= 0) {
-    return null;
-  }
-
-  const massKg = estimateAsteroidMassKg(entry);
-  if (!Number.isFinite(massKg) || massKg <= 0) {
-    return null;
-  }
-
-  const speedMetersPerSecond = speedKilometersPerSecond * 1000;
-  const kineticEnergyJoules = 0.5 * massKg * speedMetersPerSecond * speedMetersPerSecond;
-  return kineticEnergyJoules / JOULES_PER_MEGATON_TNT;
-}
-
-function updateImpactTimeWidget(entry) {
-  if (!impactTimeWidget) {
-    return;
-  }
-
-  const impactState = entry?.earthOrbitIntersection?.asteroidImpactState ?? null;
-  const hasIntersection = Boolean(entry?.earthOrbitIntersection?.intersects);
-
-  if (!hasIntersection || !impactState) {
-    impactTimeWidget.clear();
-    return;
-  }
-
-  const timestampMs = deriveOrbitTimestampMs(impactState.orbitFrames) ?? impactState.timestampMs;
-  if (!Number.isFinite(timestampMs)) {
-    impactTimeWidget.clear();
-    return;
-  }
-
-  impactTimeWidget.setImpactTime({
-    timestampMs,
-    orbitFrames: impactState.orbitFrames,
-    asteroidName: entry?.data?.name ?? entry?.data?.id ?? null
-  });
-}
-
-function deriveOrbitTimestampMs(orbitFrames) {
-  if (!Number.isFinite(orbitFrames)) {
-    return null;
-  }
-
-  const multiplier = typeof orbitTimeChannel?.getMultiplier === 'function'
-    ? orbitTimeChannel.getMultiplier()
-    : null;
-
-  if (!Number.isFinite(multiplier) || multiplier <= 0) {
-    return null;
-  }
-
-  return orbitFrames / multiplier;
 }
 
 function applyEarthIntersectionResult(entry, intersection) {
@@ -1174,185 +1079,27 @@ function applyEarthIntersectionResult(entry, intersection) {
     ? earthIntersectionOptions.tolerance
     : EARTH_COLLISION_TOLERANCE_SCENE_UNITS;
 
-  const closestPointA = intersection?.closestPointA ? intersection.closestPointA.clone() : null;
-  const closestPointB = intersection?.closestPointB ? intersection.closestPointB.clone() : null;
-  const closestSampleA = intersection?.closestSampleA ?? null;
-  const closestSampleIndexA = Number.isInteger(intersection?.closestSampleIndexA)
-    ? intersection.closestSampleIndexA
-    : Number.isInteger(closestSampleA?.index)
-      ? closestSampleA.index
-      : null;
-  const impactOrbitFrames = Number.isFinite(closestSampleA?.time) ? closestSampleA.time : null;
-
-  let impactNormal = null;
-  if (closestPointA && closestPointB) {
-    const relativeVector = closestPointA.clone().sub(closestPointB);
-    if (relativeVector.lengthSq() > 1e-8) {
-      impactNormal = relativeVector.normalize();
-    }
-  }
-
-  if (!impactNormal && closestPointB && closestPointB.lengthSq() > 1e-8) {
-    impactNormal = closestPointB.clone().normalize();
-  }
-
-  const intersects = Boolean(intersection?.intersects);
-
-  let asteroidImpactState = null;
-  if (intersects && entry?.keplerElements && Number.isFinite(impactOrbitFrames)) {
-    const propagated = propagateKepler(entry.keplerElements, impactOrbitFrames);
-    const orbitalPosition = new THREE.Vector3(
-      propagated.position?.x ?? 0,
-      propagated.position?.y ?? 0,
-      propagated.position?.z ?? 0
-    );
-    const scenePosition = orbitPositionToScene(propagated.position, new THREE.Vector3());
-
-    const velocityEstimate = estimateOrbitalVelocity(entry.keplerElements, impactOrbitFrames);
-    const orbitalVelocity = velocityEstimate.orbital.clone();
-    const sceneVelocity = orbitVectorToScene(orbitalVelocity, new THREE.Vector3());
-
-    let kilometersPerSecondVector = null;
-    let kilometersPerSecondSceneVector = null;
-    let speedKilometersPerSecond = null;
-
-    if (velocityEstimate.kilometersPerSecond) {
-      kilometersPerSecondVector = velocityEstimate.kilometersPerSecond.clone();
-      kilometersPerSecondSceneVector = orbitVectorToScene(
-        kilometersPerSecondVector,
-        new THREE.Vector3()
-      );
-      speedKilometersPerSecond = kilometersPerSecondVector.length();
-    }
-
-    let earthOrbitalVelocity = null;
-    let earthKilometersPerSecondVector = null;
-    let earthKilometersPerSecondSceneVector = null;
-
-    if (earthKeplerElements) {
-      const earthVelocityEstimate = estimateOrbitalVelocity(earthKeplerElements, impactOrbitFrames);
-      if (earthVelocityEstimate?.orbital) {
-        earthOrbitalVelocity = earthVelocityEstimate.orbital.clone();
-      }
-      if (earthVelocityEstimate?.kilometersPerSecond) {
-        earthKilometersPerSecondVector = earthVelocityEstimate.kilometersPerSecond.clone();
-        earthKilometersPerSecondSceneVector = orbitVectorToScene(
-          earthKilometersPerSecondVector,
-          new THREE.Vector3()
-        );
-      }
-    }
-
-    let relativeKilometersPerSecondVector = null;
-    let relativeKilometersPerSecondSceneVector = null;
-    let relativeSpeedKilometersPerSecond = null;
-
-    if (kilometersPerSecondVector && earthKilometersPerSecondVector) {
-      relativeKilometersPerSecondVector = kilometersPerSecondVector.clone().sub(earthKilometersPerSecondVector);
-      relativeKilometersPerSecondSceneVector = orbitVectorToScene(
-        relativeKilometersPerSecondVector,
-        new THREE.Vector3()
-      );
-      relativeSpeedKilometersPerSecond = relativeKilometersPerSecondVector.length();
-    }
-
-    const timestampMs = deriveOrbitTimestampMs(impactOrbitFrames);
-
-    asteroidImpactState = {
-      orbitFrames: impactOrbitFrames,
-      simulationSeconds: impactOrbitFrames * SECONDS_PER_FRAME,
-      timestampMs,
-      sampleIndex: closestSampleIndexA,
-      orbitalPosition,
-      scenePosition,
-      orbitalVelocity,
-      sceneVelocity,
-      kilometersPerSecond: kilometersPerSecondVector,
-      kilometersPerSecondScene: kilometersPerSecondSceneVector,
-      speedKilometersPerSecond,
-      earthOrbitalVelocity,
-      earthKilometersPerSecond: earthKilometersPerSecondVector,
-      earthKilometersPerSecondScene: earthKilometersPerSecondSceneVector,
-      relativeKilometersPerSecond: relativeKilometersPerSecondVector,
-      relativeKilometersPerSecondScene: relativeKilometersPerSecondSceneVector,
-      relativeSpeedKilometersPerSecond
-    };
-
-    const impactYieldMegatons = calculateImpactYieldMegatons(entry, asteroidImpactState);
-    if (Number.isFinite(impactYieldMegatons) && impactYieldMegatons >= 0) {
-      asteroidImpactState.impactYieldMegatons = impactYieldMegatons;
-      if (!entry.data) {
-        entry.data = {};
-      }
-      entry.data.tntYieldMt = impactYieldMegatons;
-    }
-
-    const impactTimestampMs = deriveOrbitTimestampMs(impactOrbitFrames) ?? asteroidImpactState.timestampMs;
-    if (Number.isFinite(impactTimestampMs)) {
-      const currentDuration = simulationClock.getDuration();
-      const paddedDuration = impactTimestampMs + IMPACT_DURATION_PADDING_MS;
-      if (paddedDuration > currentDuration) {
-        try {
-          simulationClock.setDuration(paddedDuration);
-        } catch (error) {
-          console.warn('Unable to extend simulation duration for impact timestamp', error);
-        }
-      }
-    }
-  } else if (entry?.data) {
-    entry.data.tntYieldMt = 0;
-  }
+  const closestPointA = cloneVector3(intersection?.closestPointA);
+  const closestPointB = cloneVector3(intersection?.closestPointB);
+  const impactNormal = deriveImpactNormal(closestPointA, closestPointB);
 
   const info = {
-    intersects,
+    intersects: Boolean(intersection?.intersects),
     minimumDistanceSceneUnits,
     thresholdSceneUnits,
     impactPoint: closestPointB,
-    impactNormal,
-    asteroidImpactState,
-    impactYieldMegatons: asteroidImpactState?.impactYieldMegatons ?? null
+    impactNormal
   };
 
   entry.earthOrbitIntersection = info;
   if (entry.data) {
     entry.data.earthOrbitIntersection = {
       intersects: info.intersects,
-      minimumDistanceSceneUnits: info.minimumDistanceSceneUnits,
-      thresholdSceneUnits: info.thresholdSceneUnits,
-      impactPoint: toPlainVector(info.impactPoint),
-      impactNormal: toPlainVector(info.impactNormal),
-      impactYieldMegatons: info.impactYieldMegatons,
-      asteroidImpactState: asteroidImpactState
-        ? {
-            orbitFrames: asteroidImpactState.orbitFrames,
-            simulationSeconds: asteroidImpactState.simulationSeconds,
-            timestampMs: asteroidImpactState.timestampMs,
-            sampleIndex: asteroidImpactState.sampleIndex,
-            orbitalPosition: toPlainVector(asteroidImpactState.orbitalPosition),
-            scenePosition: toPlainVector(asteroidImpactState.scenePosition),
-            orbitalVelocity: toPlainVector(asteroidImpactState.orbitalVelocity),
-            sceneVelocity: toPlainVector(asteroidImpactState.sceneVelocity),
-            kilometersPerSecond: toPlainVector(asteroidImpactState.kilometersPerSecond),
-            kilometersPerSecondScene: toPlainVector(asteroidImpactState.kilometersPerSecondScene),
-            speedKilometersPerSecond: asteroidImpactState.speedKilometersPerSecond,
-            earthOrbitalVelocity: toPlainVector(asteroidImpactState.earthOrbitalVelocity),
-            earthKilometersPerSecond: toPlainVector(asteroidImpactState.earthKilometersPerSecond),
-            earthKilometersPerSecondScene: toPlainVector(asteroidImpactState.earthKilometersPerSecondScene),
-            relativeKilometersPerSecond: toPlainVector(asteroidImpactState.relativeKilometersPerSecond),
-            relativeKilometersPerSecondScene: toPlainVector(
-              asteroidImpactState.relativeKilometersPerSecondScene
-            ),
-            relativeSpeedKilometersPerSecond: asteroidImpactState.relativeSpeedKilometersPerSecond,
-            impactYieldMegatons: asteroidImpactState.impactYieldMegatons ?? null
-          }
-        : null
+      minimumDistanceSceneUnits,
+      thresholdSceneUnits,
+      impactPoint: vector3ToPlain(closestPointB),
+      impactNormal: vector3ToPlain(impactNormal)
     };
-  }
-
-  updateAsteroidPanelMetadata(entry);
-
-  if (entry === focusedAsteroidEntry) {
-    updateImpactTimeWidget(entry);
   }
 
   return info;
@@ -1480,7 +1227,6 @@ function clearAsteroidFocus() {
   }
 
   updateCollisionButtonState();
-  updateImpactTimeWidget(null);
 }
 
 async function activateAsteroid(entry) {
