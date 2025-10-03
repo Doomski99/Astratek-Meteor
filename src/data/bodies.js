@@ -1,11 +1,7 @@
 import * as THREE from 'three';
 import { createKeplerElements, propagateKepler } from '../simulation/kepler.js';
-import {
-  orbitPositionToScene,
-  sampleKeplerOrbit,
-  estimateOrbitIntersection
-} from '../simulation/orbitUtils.js';
-import { AU_TO_SCENE_UNITS, FRAMES_PER_SIMULATION_DAY, EARTH_COLLISION_TOLERANCE_SCENE_UNITS } from '../simulation/scales.js';
+import { orbitPositionToScene, sampleKeplerOrbit } from '../simulation/orbitUtils.js';
+import { AU_TO_SCENE_UNITS, FRAMES_PER_SIMULATION_DAY } from '../simulation/scales.js';
 
 const DEG_TO_RAD = Math.PI / 180;
 const DEFAULT_VISUAL_SCALE = 0.02;
@@ -542,30 +538,56 @@ const planetOrbitCatalog = Object.fromEntries(
   Object.entries(planetOrbitDefinitions).map(([name, definition]) => [name, transformPlanetOrbit(definition)])
 );
 
-const earthOrbitDefinition = planetOrbitCatalog.Earth ?? null;
-const earthKeplerElements = earthOrbitDefinition ? createKeplerElements(earthOrbitDefinition) : null;
-const earthOrbitSamples = earthKeplerElements ? sampleKeplerOrbit(earthKeplerElements, 512) : [];
+function toVector3(value) {
+  if (value instanceof THREE.Vector3) {
+    return value.clone();
+  }
+
+  if (value && typeof value === 'object') {
+    const { x, y, z } = value;
+    if ([x, y, z].every(component => Number.isFinite(component))) {
+      return new THREE.Vector3(x, y, z);
+    }
+  }
+
+  return null;
+}
+
+function sanitizeEarthIntersection(source) {
+  if (!source || typeof source !== 'object') {
+    return null;
+  }
+
+  const intersects = Boolean(source.intersects);
+  const minimumDistanceSceneUnits = Number.isFinite(source.minimumDistanceSceneUnits)
+    ? source.minimumDistanceSceneUnits
+    : null;
+  const thresholdSceneUnits = Number.isFinite(source.thresholdSceneUnits)
+    ? source.thresholdSceneUnits
+    : null;
+  const impactPoint = toVector3(source.impactPoint);
+  let impactNormal = toVector3(source.impactNormal);
+
+  if (impactNormal && impactNormal.lengthSq() > 1e-8) {
+    impactNormal = impactNormal.normalize();
+  } else {
+    impactNormal = null;
+  }
+
+  return {
+    ...source,
+    intersects,
+    minimumDistanceSceneUnits,
+    thresholdSceneUnits,
+    impactPoint,
+    impactNormal
+  };
+}
 
 function createAsteroidEntries(catalog = []) {
   return catalog.map((data, index) => {
     const keplerElements = createKeplerElements(data.orbit);
-    const intersection =
-      keplerElements && earthKeplerElements
-        ? estimateOrbitIntersection(keplerElements, earthKeplerElements, {
-            tolerance: EARTH_COLLISION_TOLERANCE_SCENE_UNITS,
-            orbitBSamples: earthOrbitSamples
-          })
-        : { intersects: false, minimumDistance: Infinity };
-
-    const minimumDistanceSceneUnits = Number.isFinite(intersection.minimumDistance)
-      ? intersection.minimumDistance
-      : null;
-
-    const earthOrbitIntersection = {
-      intersects: Boolean(intersection.intersects),
-      minimumDistanceSceneUnits,
-      thresholdSceneUnits: earthKeplerElements ? EARTH_COLLISION_TOLERANCE_SCENE_UNITS : null
-    };
+    const earthOrbitIntersection = sanitizeEarthIntersection(data.earthOrbitIntersection);
 
     return {
       data: {
@@ -579,8 +601,7 @@ function createAsteroidEntries(catalog = []) {
               kilometersPerSecond: { x: 0, y: 0, z: 0 },
               speedKilometersPerSecond: 0
             }
-          },
-        earthOrbitIntersection
+          }
       },
       mesh: null,
       keplerElements,

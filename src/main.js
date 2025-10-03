@@ -52,15 +52,10 @@ import {
   createImpactOverlayMesh,
   disposeObject
 } from './simulation/asteroids.js';
-import { createKeplerElements, propagateKepler } from './simulation/kepler.js';
-import {
-  orbitPositionToScene,
-  estimateOrbitalVelocity,
-  sampleKeplerOrbit,
-  estimateOrbitIntersection
-} from './simulation/orbitUtils.js';
+import { propagateKepler } from './simulation/kepler.js';
+import { orbitPositionToScene, estimateOrbitalVelocity } from './simulation/orbitUtils.js';
 import { updateEarthVelocity } from './simulation/referenceFrames.js';
-import { EARTH_RADIUS_SCENE_UNITS, EARTH_COLLISION_TOLERANCE_SCENE_UNITS } from './simulation/scales.js';
+import { EARTH_RADIUS_SCENE_UNITS } from './simulation/scales.js';
 
 const cubeTextureLoader = new THREE.CubeTextureLoader();
 const textureLoader = new THREE.TextureLoader();
@@ -88,13 +83,6 @@ const simulationClock = createSimulationClock({ duration: DEFAULT_SIMULATION_DUR
 const orbitTimeChannel = simulationClock.createChannel(settings.accelerationOrbit * FRAMES_PER_MILLISECOND);
 const spinTimeChannel = simulationClock.createChannel(settings.acceleration * FRAMES_PER_MILLISECOND);
 
-const earthOrbitDefinition = planetOrbitCatalog.Earth ?? null;
-const earthKeplerElements = earthOrbitDefinition ? createKeplerElements(earthOrbitDefinition) : null;
-const earthOrbitSamples = earthKeplerElements ? sampleKeplerOrbit(earthKeplerElements, 512) : [];
-const earthIntersectionOptions = {
-  tolerance: EARTH_COLLISION_TOLERANCE_SCENE_UNITS,
-  orbitBSamples: earthOrbitSamples
-};
 
 initTimeControls(simulationClock);
 
@@ -105,7 +93,7 @@ if (impactLegendElement) {
 
 const forceCollisionButton = document.getElementById('forceCollisionButton');
 if (forceCollisionButton) {
-  forceCollisionButton.addEventListener('click', handleForceCollisionClick);
+  forceCollisionButton.hidden = true;
 }
 
 let lastFrameTime = performance.now();
@@ -394,10 +382,10 @@ const asteroidYieldColors = {
   high: 0xe74c3c
 };
 
-const asteroidYieldRadiusScale = {
-  low: 1.3,
-  medium: 1.8,
-  high: 2.6
+const asteroidImpactAngularRadii = {
+  low: 12,
+  medium: 25,
+  high: 40
 };
 
 const defaultAsteroidCameraOffset = new THREE.Vector3(25, 15, 25);
@@ -508,34 +496,6 @@ let hoveredAsteroidEntry = null;
 const asteroidTrajectories = new Map();
 let asteroidImpactOverlay = null;
 let isMovingTowardsAsteroid = false;
-
-function updateCollisionButtonState() {
-  if (!forceCollisionButton) {
-    return;
-  }
-
-  const hasSelection = Boolean(focusedAsteroidEntry);
-  forceCollisionButton.disabled = !hasSelection;
-  forceCollisionButton.setAttribute('aria-disabled', hasSelection ? 'false' : 'true');
-}
-
-function handleForceCollisionClick() {
-  if (!focusedAsteroidEntry) {
-    return;
-  }
-
-  const collisionAchieved = retargetAsteroidForCollision(focusedAsteroidEntry);
-
-  updateAsteroidTransform(focusedAsteroidEntry, getCurrentSimulationTiming());
-  updateAsteroidPanelMetadata(focusedAsteroidEntry);
-  updateAsteroidTrajectories();
-  asteroidInfoPanel?.update(focusedAsteroidEntry);
-  createImpactOverlay(focusedAsteroidEntry);
-
-  if (!collisionAchieved) {
-    console.warn('Unable to align asteroid orbit with Earth for collision', focusedAsteroidEntry.data?.id);
-  }
-}
 
 const earthMaterial = new THREE.ShaderMaterial({
   uniforms: {
@@ -1009,7 +969,7 @@ function createImpactOverlay(entry) {
   const earthRadius = earth?.planet?.geometry?.parameters?.radius ?? EARTH_RADIUS_SCENE_UNITS;
   asteroidImpactOverlay = createImpactOverlayMesh(entry, earthRadius, {
     colors: asteroidYieldColors,
-    radiusScale: asteroidYieldRadiusScale
+    angularRadii: asteroidImpactAngularRadii
   });
 
   if (earth?.planet) {
@@ -1019,125 +979,6 @@ function createImpactOverlay(entry) {
   }
 
   setImpactLegendVisible(true);
-}
-
-function applyEarthIntersectionResult(entry, intersection) {
-  if (!entry) {
-    return {
-      intersects: false,
-      minimumDistanceSceneUnits: null,
-      thresholdSceneUnits: EARTH_COLLISION_TOLERANCE_SCENE_UNITS
-    };
-  }
-
-  const minimumDistanceSceneUnits = Number.isFinite(intersection?.minimumDistance)
-    ? intersection.minimumDistance
-    : null;
-
-  const thresholdSceneUnits = Number.isFinite(earthIntersectionOptions?.tolerance)
-    ? earthIntersectionOptions.tolerance
-    : EARTH_COLLISION_TOLERANCE_SCENE_UNITS;
-
-  const info = {
-    intersects: Boolean(intersection?.intersects),
-    minimumDistanceSceneUnits,
-    thresholdSceneUnits
-  };
-
-  entry.earthOrbitIntersection = info;
-  if (entry.data) {
-    entry.data.earthOrbitIntersection = { ...info };
-  }
-
-  return info;
-}
-
-function retargetAsteroidForCollision(entry) {
-  if (!entry?.keplerElements || !earthKeplerElements) {
-    return false;
-  }
-
-  let intersection = estimateOrbitIntersection(
-    entry.keplerElements,
-    earthKeplerElements,
-    earthIntersectionOptions
-  );
-  applyEarthIntersectionResult(entry, intersection);
-
-  for (let iteration = 0; iteration < 6 && !intersection.intersects; iteration += 1) {
-    const pointA = intersection.closestPointA;
-    const pointB = intersection.closestPointB;
-
-    if (!pointA || !pointB) {
-      break;
-    }
-
-    const denominator = pointA.dot(pointA);
-    if (denominator <= 0) {
-      break;
-    }
-
-    let scale = pointA.dot(pointB) / denominator;
-    if (!Number.isFinite(scale) || scale <= 0) {
-      break;
-    }
-
-    scale = Math.min(Math.max(scale, 0.05), 20);
-
-    const nextSemiMajorAxis = entry.keplerElements.semiMajorAxis * scale;
-    if (!Number.isFinite(nextSemiMajorAxis) || nextSemiMajorAxis <= 0) {
-      break;
-    }
-
-    if (
-      Math.abs(nextSemiMajorAxis - entry.keplerElements.semiMajorAxis) <=
-      Math.max(1e-3, Math.abs(entry.keplerElements.semiMajorAxis) * 1e-6)
-    ) {
-      break;
-    }
-
-    entry.keplerElements.semiMajorAxis = nextSemiMajorAxis;
-    if (entry.data?.orbit) {
-      entry.data.orbit.semiMajorAxis = nextSemiMajorAxis;
-    }
-
-    intersection = estimateOrbitIntersection(
-      entry.keplerElements,
-      earthKeplerElements,
-      earthIntersectionOptions
-    );
-    applyEarthIntersectionResult(entry, intersection);
-  }
-
-  if (!entry.earthOrbitIntersection?.intersects) {
-    const minDistance = entry.earthOrbitIntersection?.minimumDistanceSceneUnits;
-    const threshold =
-      entry.earthOrbitIntersection?.thresholdSceneUnits ?? EARTH_COLLISION_TOLERANCE_SCENE_UNITS;
-
-    if (Number.isFinite(minDistance) && minDistance > 0) {
-      let ratio = threshold / minDistance;
-      ratio = Math.min(Math.max(ratio, 0.05), 20);
-
-      if (Math.abs(ratio - 1) > 1e-3) {
-        const fallbackSemiMajorAxis = entry.keplerElements.semiMajorAxis * ratio;
-        if (Number.isFinite(fallbackSemiMajorAxis) && fallbackSemiMajorAxis > 0) {
-          entry.keplerElements.semiMajorAxis = fallbackSemiMajorAxis;
-          if (entry.data?.orbit) {
-            entry.data.orbit.semiMajorAxis = fallbackSemiMajorAxis;
-          }
-
-          const finalIntersection = estimateOrbitIntersection(
-            entry.keplerElements,
-            earthKeplerElements,
-            earthIntersectionOptions
-          );
-          applyEarthIntersectionResult(entry, finalIntersection);
-        }
-      }
-    }
-  }
-
-  return Boolean(entry.earthOrbitIntersection?.intersects);
 }
 
 function focusCameraOnAsteroid(entry) {
@@ -1172,8 +1013,6 @@ function clearAsteroidFocus() {
     focusedAsteroidEntry = null;
     isMovingTowardsAsteroid = false;
   }
-
-  updateCollisionButtonState();
 }
 
 async function activateAsteroid(entry) {
@@ -1253,21 +1092,12 @@ function handleAsteroidToggle(id, shouldActivate) {
 function focusAsteroidEntry(entry) {
   clearAsteroidFocus();
   focusedAsteroidEntry = entry;
-  updateCollisionButtonState();
   activeAsteroidIds.add(entry.data.id);
   asteroidPanel?.setFocused(entry.data.id);
   setActiveViewTarget(getAsteroidViewTargetId(entry.data.id));
   ensureAsteroidTrajectory(entry);
   focusCameraOnAsteroid(entry);
   asteroidInfoPanel?.setActiveAsteroid(entry);
-  if (earthKeplerElements && entry?.keplerElements) {
-    const intersection = estimateOrbitIntersection(
-      entry.keplerElements,
-      earthKeplerElements,
-      earthIntersectionOptions
-    );
-    applyEarthIntersectionResult(entry, intersection);
-  }
   createImpactOverlay(entry);
 }
 
@@ -1549,8 +1379,6 @@ function animate(now = performance.now()) {
   requestAnimationFrame(animate);
   composer.render();
 }
-
-updateCollisionButtonState();
 
 initializeAsteroids().catch(error => {
   console.error('Failed to initialize asteroids', error);
