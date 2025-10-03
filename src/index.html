@@ -62,6 +62,12 @@
             <ul class="impactor-effects__list" data-impactor-effects></ul>
         </div>
     </aside>
+    <aside id="impactMapPanel" class="impact-map-panel" hidden>
+        <header class="impact-map-panel__header">Impact Map</header>
+        <canvas id="impactMapCanvas" class="impact-map-panel__canvas" width="320" height="180"></canvas>
+        <p class="impact-map-panel__status" data-impact-map-status>Awaiting impactor launch…</p>
+        <p class="impact-map-panel__caption" data-impact-map-caption>Effect zones are scaled for clarity on the map. Distances shown above remain physically accurate.</p>
+    </aside>
     <div id="impactLegendOverlay" class="impact-legend">
         <h3 class="impact-legend__title">Impact Yield Bands</h3>
         <ul class="impact-legend__scale">

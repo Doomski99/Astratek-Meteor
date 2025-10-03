@@ -328,6 +328,58 @@ p {
     z-index: 14;
 }
 
+.impact-map-panel {
+    position: absolute;
+    top: calc(15% + 360px);
+    right: 1.5%;
+    width: 320px;
+    padding: 12px 16px;
+    background: rgba(0, 0, 32, 0.78);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 10px;
+    color: #f4f5ff;
+    font-family: Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 13;
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.35);
+}
+
+.impact-map-panel__header {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #9ecbff;
+}
+
+.impact-map-panel__canvas {
+    width: 100%;
+    height: auto;
+    border-radius: 8px;
+    border: 1px solid rgba(158, 203, 255, 0.35);
+    background: radial-gradient(circle at 50% 50%, rgba(30, 60, 120, 0.35), rgba(5, 10, 30, 0.9));
+    image-rendering: optimizeQuality;
+}
+
+.impact-map-panel__status {
+    margin: 0;
+    font-size: 12px;
+    font-weight: 500;
+    color: #ffdd9e;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.impact-map-panel__caption {
+    margin: 0;
+    font-size: 11px;
+    line-height: 1.4;
+    color: rgba(216, 229, 255, 0.8);
+}
+
 .impactor-panel__header {
     margin: 0;
     font-size: 16px;
@@ -565,6 +617,12 @@ p {
     }
 
     .impactor-panel {
+        position: static;
+        width: calc(100% - 48px);
+        margin: 16px 24px 0;
+    }
+
+    .impact-map-panel {
         position: static;
         width: calc(100% - 48px);
         margin: 16px 24px 0;

@@ -110,6 +110,247 @@ const impactorYieldValue = document.querySelector('[data-impactor-yield]');
 const impactorImpactLocationValue = document.querySelector('[data-impactor-impact-location]');
 const impactorTimeValue = document.querySelector('[data-impactor-time]');
 const impactorEffectsList = document.querySelector('[data-impactor-effects]');
+const impactMapPanel = document.getElementById('impactMapPanel');
+const impactMapCanvas = document.getElementById('impactMapCanvas');
+const impactMapContext = impactMapCanvas?.getContext('2d') ?? null;
+const impactMapStatusElement = document.querySelector('[data-impact-map-status]');
+const impactMapCaptionElement = document.querySelector('[data-impact-map-caption]');
+const impactMapStatusBaseText = impactMapStatusElement?.textContent ?? 'Awaiting impactor launch…';
+const impactMapCaptionBaseText = impactMapCaptionElement?.textContent ?? '';
+
+const impactMapImage = new Image();
+impactMapImage.crossOrigin = 'anonymous';
+impactMapImage.src = earthTexture;
+let impactMapImageReady = impactMapImage.complete && impactMapImage.naturalWidth > 0;
+let pendingImpactMapDraw = null;
+
+impactMapImage.onload = () => {
+  impactMapImageReady = true;
+  if (typeof pendingImpactMapDraw === 'function') {
+    const callback = pendingImpactMapDraw;
+    pendingImpactMapDraw = null;
+    callback();
+  }
+};
+
+let impactMapSummary = null;
+let lastImpactMapImpacted = null;
+let lastImpactMapSecond = null;
+
+function hexToRgba(hex, alpha = 1) {
+  const value = Number.isFinite(hex) ? hex : 0xffffff;
+  const clampedAlpha = Math.min(Math.max(alpha, 0), 1);
+  const r = (value >> 16) & 0xff;
+  const g = (value >> 8) & 0xff;
+  const b = value & 0xff;
+  return `rgba(${r}, ${g}, ${b}, ${clampedAlpha})`;
+}
+
+function normalizeLongitude(longitude) {
+  const raw = Number.isFinite(longitude) ? longitude : 0;
+  return ((raw + 540) % 360) - 180;
+}
+
+function showImpactMapPanel() {
+  if (impactMapPanel) {
+    impactMapPanel.hidden = false;
+  }
+}
+
+function hideImpactMapPanel() {
+  if (impactMapPanel) {
+    impactMapPanel.hidden = true;
+  }
+  if (impactMapCanvas && impactMapContext) {
+    impactMapContext.clearRect(0, 0, impactMapCanvas.width, impactMapCanvas.height);
+    impactMapContext.fillStyle = 'rgba(3, 6, 24, 0.92)';
+    impactMapContext.fillRect(0, 0, impactMapCanvas.width, impactMapCanvas.height);
+  }
+  if (impactMapStatusElement) {
+    impactMapStatusElement.textContent = impactMapStatusBaseText;
+  }
+  if (impactMapCaptionElement) {
+    impactMapCaptionElement.textContent = impactMapCaptionBaseText;
+  }
+  pendingImpactMapDraw = null;
+  impactMapSummary = null;
+  lastImpactMapImpacted = null;
+  lastImpactMapSecond = null;
+}
+
+function updateImpactMapStatusText({
+  name,
+  latitude,
+  longitude,
+  remainingSeconds,
+  impacted
+} = {}) {
+  if (!impactMapStatusElement) {
+    return;
+  }
+
+  if (!name) {
+    impactMapStatusElement.textContent = impactMapStatusBaseText;
+    return;
+  }
+
+  const locationText = `${formatLatitude(latitude)}, ${formatLongitude(longitude)}`;
+  const timeText = impacted
+    ? 'Impact occurred'
+    : Number.isFinite(remainingSeconds)
+      ? `Impact in ${formatDuration(Math.max(remainingSeconds, 0))}`
+      : 'Impact pending';
+
+  impactMapStatusElement.textContent = `${name} — ${locationText} — ${timeText}`;
+}
+
+function renderImpactMap(summary, { impacted = false } = {}) {
+  if (!impactMapCanvas || !impactMapContext || !summary) {
+    return;
+  }
+
+  const { width, height } = impactMapCanvas;
+  impactMapContext.clearRect(0, 0, width, height);
+
+  if (impactMapImageReady) {
+    impactMapContext.drawImage(impactMapImage, 0, 0, width, height);
+    impactMapContext.fillStyle = 'rgba(2, 4, 18, 0.45)';
+    impactMapContext.fillRect(0, 0, width, height);
+  } else {
+    impactMapContext.fillStyle = 'rgba(3, 6, 24, 0.92)';
+    impactMapContext.fillRect(0, 0, width, height);
+    pendingImpactMapDraw = () => renderImpactMap(summary, { impacted });
+  }
+
+  const safeLatitude = Math.max(Math.min(summary.latitude ?? 0, 89.999), -89.999);
+  const safeLongitude = normalizeLongitude(summary.longitude);
+  const latRad = THREE.MathUtils.degToRad(safeLatitude);
+  const centerX = ((safeLongitude + 180) / 360) * width;
+  const centerY = ((90 - safeLatitude) / 180) * height;
+
+  const bands = Array.isArray(summary.effectBands)
+    ? [...summary.effectBands].sort((a, b) => (b.radiusKm ?? 0) - (a.radiusKm ?? 0))
+    : [];
+
+  bands.forEach(band => {
+    const angularRadius = band.displayAngularRadiusRad ?? band.angularRadiusRad ?? 0;
+    if (!Number.isFinite(angularRadius) || angularRadius <= 0) {
+      return;
+    }
+
+    const radiusLatDeg = THREE.MathUtils.radToDeg(angularRadius);
+    const lonScale = Math.max(Math.cos(latRad), 0.25);
+    const radiusLonDeg = radiusLatDeg / lonScale;
+    const radiusX = Math.max((Math.abs(radiusLonDeg) / 360) * width, 6);
+    const radiusY = Math.max((Math.abs(radiusLatDeg) / 180) * height, 6);
+
+    const positions = [centerX];
+    if (centerX - radiusX < 0) {
+      positions.push(centerX + width);
+    }
+    if (centerX + radiusX > width) {
+      positions.push(centerX - width);
+    }
+
+    positions.forEach(xPosition => {
+      impactMapContext.beginPath();
+      impactMapContext.ellipse(xPosition, centerY, radiusX, radiusY, 0, 0, Math.PI * 2);
+      impactMapContext.fillStyle = hexToRgba(band.fillColor ?? band.color ?? 0xff7043, band.opacity ?? 0.35);
+      impactMapContext.fill();
+      impactMapContext.lineWidth = 2;
+      impactMapContext.strokeStyle = hexToRgba(
+        band.outlineColor ?? band.fillColor ?? 0xffc199,
+        Math.min((band.opacity ?? 0.35) + 0.25, 0.95)
+      );
+      impactMapContext.stroke();
+    });
+  });
+
+  const markerPositions = [centerX];
+  if (centerX < 12) {
+    markerPositions.push(centerX + width);
+  }
+  if (centerX > width - 12) {
+    markerPositions.push(centerX - width);
+  }
+
+  markerPositions.forEach(xPosition => {
+    impactMapContext.beginPath();
+    impactMapContext.arc(xPosition, centerY, impacted ? 6 : 4, 0, Math.PI * 2);
+    impactMapContext.fillStyle = impacted ? 'rgba(255, 112, 67, 0.9)' : 'rgba(216, 229, 255, 0.95)';
+    impactMapContext.fill();
+    impactMapContext.lineWidth = 2;
+    impactMapContext.strokeStyle = impacted ? 'rgba(255, 170, 120, 0.95)' : 'rgba(90, 205, 255, 0.85)';
+    impactMapContext.stroke();
+
+    impactMapContext.beginPath();
+    impactMapContext.moveTo(xPosition - 10, centerY);
+    impactMapContext.lineTo(xPosition + 10, centerY);
+    impactMapContext.moveTo(xPosition, centerY - 10);
+    impactMapContext.lineTo(xPosition, centerY + 10);
+    impactMapContext.lineWidth = 1.2;
+    impactMapContext.strokeStyle = 'rgba(240, 248, 255, 0.55)';
+    impactMapContext.stroke();
+  });
+
+  if (impactMapCaptionElement) {
+    const locationText = `${formatLatitude(summary.latitude)}, ${formatLongitude(summary.longitude)}`;
+    impactMapCaptionElement.textContent = `${impactMapCaptionBaseText} Focused near ${locationText}.`;
+  }
+}
+
+function setImpactMapSummary(summary) {
+  if (!summary) {
+    hideImpactMapPanel();
+    return;
+  }
+
+  impactMapSummary = {
+    ...summary,
+    effectBands: Array.isArray(summary.effectBands)
+      ? summary.effectBands.map(band => ({ ...band }))
+      : []
+  };
+  lastImpactMapImpacted = false;
+  lastImpactMapSecond = Number.isFinite(summary.timeToImpactSeconds)
+    ? Math.floor(summary.timeToImpactSeconds)
+    : null;
+
+  showImpactMapPanel();
+  renderImpactMap(impactMapSummary, { impacted: false });
+  updateImpactMapStatusText({
+    ...impactMapSummary,
+    remainingSeconds: summary.timeToImpactSeconds,
+    impacted: false
+  });
+}
+
+function updateImpactMapFromSnapshot(snapshot) {
+  if (!impactMapSummary || !snapshot) {
+    return;
+  }
+
+  const wholeSeconds = Number.isFinite(snapshot.remainingSeconds)
+    ? Math.max(0, Math.floor(snapshot.remainingSeconds))
+    : null;
+
+  const impactedChanged = snapshot.impacted !== lastImpactMapImpacted;
+  if (impactedChanged) {
+    lastImpactMapImpacted = snapshot.impacted;
+    renderImpactMap(impactMapSummary, { impacted: snapshot.impacted });
+  }
+
+  impactMapSummary.timeToImpactSeconds = snapshot.remainingSeconds;
+
+  if (impactedChanged || wholeSeconds !== lastImpactMapSecond) {
+    lastImpactMapSecond = wholeSeconds;
+    updateImpactMapStatusText({
+      ...impactMapSummary,
+      remainingSeconds: snapshot.remainingSeconds,
+      impacted: snapshot.impacted
+    });
+  }
+}
 
 function formatLatitude(latitude) {
   if (!Number.isFinite(latitude)) {
@@ -183,6 +424,7 @@ function clearImpactorResults() {
   if (impactorEffectsList) {
     impactorEffectsList.innerHTML = '';
   }
+  hideImpactMapPanel();
 }
 
 function renderImpactorEffects(bands) {
@@ -253,6 +495,8 @@ function updateImpactorResults(summary) {
   if (Array.isArray(summary.effectBands)) {
     renderImpactorEffects(summary.effectBands);
   }
+
+  setImpactMapSummary(summary);
 }
 
 function updateImpactorCountdown(remainingSeconds, impacted) {
@@ -1581,6 +1825,7 @@ function animate(now = performance.now()) {
       impactorSnapshot.remainingSeconds,
       impactorSnapshot.impacted
     );
+    updateImpactMapFromSnapshot(impactorSnapshot);
   }
 
   if (focusedAsteroidEntry && focusedAsteroidEntry.mesh) {
