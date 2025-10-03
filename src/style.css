@@ -110,7 +110,7 @@ p {
 
 .impact-legend {
     position: absolute;
-    bottom: 5%;
+    bottom: calc(5% + 240px);
     left: 1.5%;
     width: 220px;
     padding: 12px 16px;
@@ -120,6 +120,10 @@ p {
     color: #f8faff;
     font-family: Arial, sans-serif;
     z-index: 12;
+}
+
+.impact-map-panel[hidden] + .impact-legend {
+    bottom: 5%;
 }
 
 .impact-legend__title {
@@ -330,8 +334,8 @@ p {
 
 .impact-map-panel {
     position: absolute;
-    top: calc(15% + 360px);
-    right: 1.5%;
+    bottom: 5%;
+    left: 1.5%;
     width: 320px;
     padding: 12px 16px;
     background: rgba(0, 0, 32, 0.78);
