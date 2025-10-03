@@ -880,7 +880,8 @@ const earth = createPlanet({
 });
 impactorManagerInstance = createImpactorManager({
   scene,
-  earthMesh: earth?.planet ?? null
+  earthMesh: earth?.planet ?? null,
+  earthOrbitElements: earth?.keplerElements ?? null
 });
 const mars = createPlanet({
   name: 'Mars',

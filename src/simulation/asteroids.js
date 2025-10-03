@@ -194,16 +194,20 @@ function createImpactOverlayMesh(
       mesh.frustumCulled = false;
       mesh.renderOrder = 2 + index;
 
-      if (orientationQuaternion) {
-        mesh.quaternion.copy(orientationQuaternion);
-      } else {
-        mesh.rotation.x = -Math.PI / 2;
-      }
-
       overlayGroup.add(mesh);
     });
 
-    return overlayGroup.children.length > 0 ? overlayGroup : null;
+    if (overlayGroup.children.length === 0) {
+      return null;
+    }
+
+    if (orientationQuaternion) {
+      overlayGroup.setRotationFromQuaternion(orientationQuaternion);
+    } else {
+      overlayGroup.rotation.x = -Math.PI / 2;
+    }
+
+    return overlayGroup;
   }
 
   const yieldBand = getYieldBand(entry.data.tntYieldMt);
