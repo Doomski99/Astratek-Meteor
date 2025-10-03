@@ -154,7 +154,142 @@ function createTrajectoryLine(points) {
   return line;
 }
 
-function createImpactOverlayMesh(entry, earthRadius, { colors, angularRadii, elevation = 0.1 } = {}) {
+function createImpactOverlayMesh(
+  entry,
+  earthRadius,
+  { colors, angularRadii, elevation = 0.1, bands } = {}
+) {
+  const defaultUp = new THREE.Vector3(0, 1, 0);
+  const impactNormal = entry?.earthOrbitIntersection?.impactNormal;
+  const hasCustomBands = Array.isArray(bands) && bands.length > 0;
+  let orientationQuaternion = null;
+
+  if (impactNormal instanceof THREE.Vector3 && impactNormal.lengthSq() > 1e-8) {
+    const normal = impactNormal.clone().normalize();
+    orientationQuaternion = new THREE.Quaternion().setFromUnitVectors(defaultUp, normal);
+  }
+
+  if (hasCustomBands) {
+    const overlayGroup = new THREE.Group();
+    overlayGroup.frustumCulled = false;
+
+    const sortedBands = [...bands].sort((a, b) => (a.radiusKm ?? 0) - (b.radiusKm ?? 0));
+
+    const vertexShader = `
+      varying vec3 vLocalNormal;
+
+      void main() {
+        vLocalNormal = normalize(normal);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `;
+
+    const fragmentShader = `
+      varying vec3 vLocalNormal;
+      uniform vec3 uColor;
+      uniform float uOpacity;
+      uniform float uAngularRadius;
+      uniform float uFeather;
+
+      void main() {
+        vec3 normal = normalize(vLocalNormal);
+        float cosAngle = clamp(dot(normal, vec3(0.0, 1.0, 0.0)), -1.0, 1.0);
+        float angle = acos(cosAngle);
+        float outerEdge = max(uAngularRadius, 0.0);
+        if (outerEdge <= 0.0001) {
+          discard;
+        }
+        float innerEdge = max(outerEdge - uFeather, 0.0);
+        float mask = 1.0 - smoothstep(innerEdge, outerEdge, angle);
+        float alpha = mask * uOpacity;
+        if (alpha <= 0.001) {
+          discard;
+        }
+        gl_FragColor = vec4(uColor, alpha);
+      }
+    `;
+
+    sortedBands.forEach((band, index) => {
+      const angularRadiusRad = Math.min(Math.max(band.angularRadiusRad ?? 0, 0), Math.PI);
+      if (angularRadiusRad <= 0) {
+        return;
+      }
+
+      const overlayRadius = earthRadius + Math.max(elevation + index * 0.12, 0);
+      const renderOrderBase = 100 + (sortedBands.length - index - 1) * 2;
+      const geometry = new THREE.SphereGeometry(overlayRadius, 128, 64);
+      const color = new THREE.Color(band.fillColor ?? band.color ?? 0xffffff);
+      const opacity = Math.min(Math.max(band.opacity ?? 0.35, 0), 1);
+      const feather = Math.max(
+        Math.min(band.featherRadians ?? THREE.MathUtils.degToRad(band.featherDegrees ?? 5), Math.PI),
+        0
+      );
+
+      const material = new THREE.ShaderMaterial({
+        uniforms: {
+          uColor: { value: color },
+          uOpacity: { value: opacity },
+          uAngularRadius: { value: angularRadiusRad },
+          uFeather: { value: Math.min(feather, angularRadiusRad) }
+        },
+        transparent: true,
+        depthWrite: false,
+        depthTest: false,
+        side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending,
+        vertexShader,
+        fragmentShader
+      });
+
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.position.set(0, 0, 0);
+      mesh.frustumCulled = false;
+      mesh.renderOrder = renderOrderBase;
+      mesh.userData.impactorEffectBand = band.id;
+
+      overlayGroup.add(mesh);
+
+      const outlineRadius = overlayRadius * Math.sin(angularRadiusRad);
+      const outlineHeight = overlayRadius * Math.cos(angularRadiusRad) + 0.002;
+      const outlineThickness = Math.max(outlineRadius * 0.045, 0.05);
+      if (outlineRadius > 0.001) {
+        const outlineGeometry = new THREE.RingGeometry(
+          Math.max(outlineRadius - outlineThickness, 0),
+          outlineRadius,
+          196
+        );
+        const outlineMaterial = new THREE.MeshBasicMaterial({
+          color: band.outlineColor ?? band.fillColor ?? 0xffffff,
+          transparent: true,
+          opacity: Math.min((band.outlineOpacity ?? (band.opacity ?? 0.35) + 0.25), 1),
+          side: THREE.DoubleSide,
+          depthWrite: false,
+          depthTest: false,
+          blending: THREE.AdditiveBlending
+        });
+        const outlineMesh = new THREE.Mesh(outlineGeometry, outlineMaterial);
+        outlineMesh.position.set(0, outlineHeight, 0);
+        outlineMesh.rotation.x = Math.PI / 2;
+        outlineMesh.frustumCulled = false;
+        outlineMesh.renderOrder = renderOrderBase + 1;
+        outlineMesh.userData.impactorEffectBand = `${band.id}-outline`;
+        overlayGroup.add(outlineMesh);
+      }
+    });
+
+    if (overlayGroup.children.length === 0) {
+      return null;
+    }
+
+    if (orientationQuaternion) {
+      overlayGroup.setRotationFromQuaternion(orientationQuaternion);
+    } else {
+      overlayGroup.rotation.x = -Math.PI / 2;
+    }
+
+    return overlayGroup;
+  }
+
   const yieldBand = getYieldBand(entry.data.tntYieldMt);
   const color = colors?.[yieldBand] ?? 0xffffff;
   const angularRadiusDeg = angularRadii?.[yieldBand] ?? 0;
@@ -176,13 +311,8 @@ function createImpactOverlayMesh(entry, earthRadius, { colors, angularRadii, ele
   overlay.frustumCulled = false;
   overlay.renderOrder = 2;
 
-  const defaultUp = new THREE.Vector3(0, 1, 0);
-  const impactNormal = entry?.earthOrbitIntersection?.impactNormal;
-
-  if (impactNormal instanceof THREE.Vector3 && impactNormal.lengthSq() > 1e-8) {
-    const normal = impactNormal.clone().normalize();
-    const quaternion = new THREE.Quaternion().setFromUnitVectors(defaultUp, normal);
-    overlay.quaternion.copy(quaternion);
+  if (orientationQuaternion) {
+    overlay.quaternion.copy(orientationQuaternion);
   } else {
     overlay.rotation.x = -Math.PI / 2;
   }
@@ -338,20 +468,31 @@ function disposeObject(object) {
     return;
   }
 
+  const nodes = [];
+  if (typeof object.traverse === 'function') {
+    object.traverse(child => {
+      nodes.push(child);
+    });
+  } else {
+    nodes.push(object);
+  }
+
+  nodes.forEach(node => {
+    if (node.geometry) {
+      node.geometry.dispose();
+    }
+
+    if (node.material) {
+      if (Array.isArray(node.material)) {
+        node.material.forEach(material => material.dispose());
+      } else {
+        node.material.dispose();
+      }
+    }
+  });
+
   if (object.parent) {
     object.parent.remove(object);
-  }
-
-  if (object.geometry) {
-    object.geometry.dispose();
-  }
-
-  if (object.material) {
-    if (Array.isArray(object.material)) {
-      object.material.forEach(material => material.dispose());
-    } else {
-      object.material.dispose();
-    }
   }
 }
 

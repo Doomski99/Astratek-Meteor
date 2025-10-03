@@ -20,6 +20,58 @@
             <li class="view-panel__item view-panel__item--active" data-target-id="earth">Earth (Default)</li>
         </ul>
     </aside>
+    <aside id="impactorPanel" class="impactor-panel">
+        <header class="impactor-panel__header">Custom Impactor</header>
+        <form id="impactorForm" class="impactor-form">
+            <div class="impactor-form__field">
+                <label class="impactor-form__label" for="impactorName">Name</label>
+                <input id="impactorName" class="impactor-form__input" type="text" placeholder="Impactor name (optional)">
+            </div>
+            <div class="impactor-form__field">
+                <label class="impactor-form__label" for="impactorMass">Mass (kg)</label>
+                <input id="impactorMass" class="impactor-form__input" type="number" min="0" step="any" placeholder="e.g. 1.5e9" required>
+            </div>
+            <div class="impactor-form__field">
+                <label class="impactor-form__label" for="impactorDiameter">Diameter (m)</label>
+                <input id="impactorDiameter" class="impactor-form__input" type="number" min="0" step="any" placeholder="e.g. 350" required>
+            </div>
+            <div class="impactor-form__field">
+                <label class="impactor-form__label" for="impactorVelocity">Velocity (km/s)</label>
+                <input id="impactorVelocity" class="impactor-form__input" type="number" min="0" step="any" placeholder="e.g. 18" required>
+            </div>
+            <div class="impactor-form__actions">
+                <button type="submit" class="impactor-button impactor-button--primary">Launch Impactor</button>
+                <button type="button" id="impactorResetButton" class="impactor-button impactor-button--secondary" disabled>Reset</button>
+            </div>
+        </form>
+        <div class="impactor-feedback" data-impactor-feedback hidden></div>
+        <div class="impactor-results" data-impactor-results hidden>
+            <div class="impactor-results__stat">
+                <span class="impactor-results__label">Yield</span>
+                <span class="impactor-results__value" data-impactor-yield>—</span>
+            </div>
+            <div class="impactor-results__stat">
+                <span class="impactor-results__label">Category</span>
+                <span class="impactor-results__value" data-impactor-category>—</span>
+            </div>
+            <div class="impactor-results__stat">
+                <span class="impactor-results__label">Impact Site</span>
+                <span class="impactor-results__value" data-impactor-impact-location>—</span>
+            </div>
+            <div class="impactor-results__stat">
+                <span class="impactor-results__label">Time to Impact</span>
+                <span class="impactor-results__value" data-impactor-time>—</span>
+            </div>
+            <h4 class="impactor-effects__title">Effect Zones</h4>
+            <ul class="impactor-effects__list" data-impactor-effects></ul>
+        </div>
+    </aside>
+    <aside id="impactMapPanel" class="impact-map-panel" hidden>
+        <header class="impact-map-panel__header">Impact Map</header>
+        <canvas id="impactMapCanvas" class="impact-map-panel__canvas" width="320" height="180"></canvas>
+        <p class="impact-map-panel__status" data-impact-map-status>Awaiting impactor launch…</p>
+        <p class="impact-map-panel__caption" data-impact-map-caption>Effect zones are scaled for clarity on the map. Distances shown above remain physically accurate.</p>
+    </aside>
     <div id="impactLegendOverlay" class="impact-legend">
         <h3 class="impact-legend__title">Impact Yield Bands</h3>
         <ul class="impact-legend__scale">

@@ -56,6 +56,7 @@ import { propagateKepler } from './simulation/kepler.js';
 import { orbitPositionToScene, estimateOrbitalVelocity } from './simulation/orbitUtils.js';
 import { updateEarthVelocity } from './simulation/referenceFrames.js';
 import { EARTH_RADIUS_SCENE_UNITS } from './simulation/scales.js';
+import { createImpactorManager } from './simulation/impactorManager.js';
 
 const cubeTextureLoader = new THREE.CubeTextureLoader();
 const textureLoader = new THREE.TextureLoader();
@@ -95,6 +96,593 @@ const forceCollisionButton = document.getElementById('forceCollisionButton');
 if (forceCollisionButton) {
   forceCollisionButton.hidden = true;
 }
+
+const impactorForm = document.getElementById('impactorForm');
+const impactorNameInput = document.getElementById('impactorName');
+const impactorMassInput = document.getElementById('impactorMass');
+const impactorDiameterInput = document.getElementById('impactorDiameter');
+const impactorVelocityInput = document.getElementById('impactorVelocity');
+const impactorSubmitButton = impactorForm?.querySelector('button[type="submit"]') ?? null;
+const impactorResetButton = document.getElementById('impactorResetButton');
+const impactorFeedbackElement = document.querySelector('[data-impactor-feedback]');
+const impactorResultsElement = document.querySelector('[data-impactor-results]');
+const impactorYieldValue = document.querySelector('[data-impactor-yield]');
+const impactorCategoryValue = document.querySelector('[data-impactor-category]');
+const impactorImpactLocationValue = document.querySelector('[data-impactor-impact-location]');
+const impactorTimeValue = document.querySelector('[data-impactor-time]');
+const impactorEffectsList = document.querySelector('[data-impactor-effects]');
+const impactMapPanel = document.getElementById('impactMapPanel');
+const impactMapCanvas = document.getElementById('impactMapCanvas');
+const impactMapContext = impactMapCanvas?.getContext('2d') ?? null;
+const impactMapStatusElement = document.querySelector('[data-impact-map-status]');
+const impactMapCaptionElement = document.querySelector('[data-impact-map-caption]');
+const impactMapStatusBaseText = impactMapStatusElement?.textContent ?? 'Awaiting impactor launch…';
+const impactMapCaptionBaseText = impactMapCaptionElement?.textContent ?? '';
+
+const impactMapImage = new Image();
+impactMapImage.crossOrigin = 'anonymous';
+impactMapImage.src = earthTexture;
+let impactMapImageReady = impactMapImage.complete && impactMapImage.naturalWidth > 0;
+let pendingImpactMapDraw = null;
+
+impactMapImage.onload = () => {
+  impactMapImageReady = true;
+  if (typeof pendingImpactMapDraw === 'function') {
+    const callback = pendingImpactMapDraw;
+    pendingImpactMapDraw = null;
+    callback();
+  }
+};
+
+let impactMapSummary = null;
+let lastImpactMapImpacted = null;
+let lastImpactMapSecond = null;
+
+function hexToRgba(hex, alpha = 1) {
+  const value = Number.isFinite(hex) ? hex : 0xffffff;
+  const clampedAlpha = Math.min(Math.max(alpha, 0), 1);
+  const r = (value >> 16) & 0xff;
+  const g = (value >> 8) & 0xff;
+  const b = value & 0xff;
+  return `rgba(${r}, ${g}, ${b}, ${clampedAlpha})`;
+}
+
+function normalizeLongitude(longitude) {
+  const raw = Number.isFinite(longitude) ? longitude : 0;
+  return ((raw + 540) % 360) - 180;
+}
+
+function showImpactMapPanel() {
+  if (impactMapPanel) {
+    impactMapPanel.hidden = false;
+  }
+}
+
+function hideImpactMapPanel() {
+  if (impactMapPanel) {
+    impactMapPanel.hidden = true;
+  }
+  if (impactMapCanvas && impactMapContext) {
+    impactMapContext.clearRect(0, 0, impactMapCanvas.width, impactMapCanvas.height);
+    impactMapContext.fillStyle = 'rgba(3, 6, 24, 0.92)';
+    impactMapContext.fillRect(0, 0, impactMapCanvas.width, impactMapCanvas.height);
+  }
+  if (impactMapStatusElement) {
+    impactMapStatusElement.textContent = impactMapStatusBaseText;
+  }
+  if (impactMapCaptionElement) {
+    impactMapCaptionElement.textContent = impactMapCaptionBaseText;
+  }
+  pendingImpactMapDraw = null;
+  impactMapSummary = null;
+  lastImpactMapImpacted = null;
+  lastImpactMapSecond = null;
+}
+
+function updateImpactMapStatusText({
+  name,
+  latitude,
+  longitude,
+  remainingSeconds,
+  impacted,
+  impactCategory
+} = {}) {
+  if (!impactMapStatusElement) {
+    return;
+  }
+
+  if (!name) {
+    impactMapStatusElement.textContent = impactMapStatusBaseText;
+    return;
+  }
+
+  const locationText = `${formatLatitude(latitude)}, ${formatLongitude(longitude)}`;
+  const timeText = impacted
+    ? 'Impact occurred'
+    : Number.isFinite(remainingSeconds)
+      ? `Impact in ${formatDuration(Math.max(remainingSeconds, 0))}`
+      : 'Impact pending';
+  const categoryText = impactCategory?.name
+    ? ` (${impactCategory.name}${impactCategory.rangeLabel ? ` • ${impactCategory.rangeLabel}` : ''})`
+    : '';
+
+  impactMapStatusElement.textContent = `${name}${categoryText} — ${locationText} — ${timeText}`;
+}
+
+function renderImpactMap(summary, { impacted = false } = {}) {
+  if (!impactMapCanvas || !impactMapContext || !summary) {
+    return;
+  }
+
+  const { width, height } = impactMapCanvas;
+  impactMapContext.clearRect(0, 0, width, height);
+
+  if (impactMapImageReady) {
+    impactMapContext.drawImage(impactMapImage, 0, 0, width, height);
+    impactMapContext.fillStyle = 'rgba(2, 4, 18, 0.45)';
+    impactMapContext.fillRect(0, 0, width, height);
+  } else {
+    impactMapContext.fillStyle = 'rgba(3, 6, 24, 0.92)';
+    impactMapContext.fillRect(0, 0, width, height);
+    pendingImpactMapDraw = () => renderImpactMap(summary, { impacted });
+  }
+
+  const safeLatitude = Math.max(Math.min(summary.latitude ?? 0, 89.999), -89.999);
+  const safeLongitude = normalizeLongitude(summary.longitude);
+  const latRad = THREE.MathUtils.degToRad(safeLatitude);
+  const centerX = ((safeLongitude + 180) / 360) * width;
+  const centerY = ((90 - safeLatitude) / 180) * height;
+
+  const bands = Array.isArray(summary.effectBands)
+    ? [...summary.effectBands].sort((a, b) => (b.radiusKm ?? 0) - (a.radiusKm ?? 0))
+    : [];
+
+  bands.forEach(band => {
+    const angularRadius = band.displayAngularRadiusRad ?? band.angularRadiusRad ?? 0;
+    if (!Number.isFinite(angularRadius) || angularRadius <= 0) {
+      return;
+    }
+
+    const radiusLatDeg = THREE.MathUtils.radToDeg(angularRadius);
+    const lonScale = Math.max(Math.cos(latRad), 0.25);
+    const radiusLonDeg = radiusLatDeg / lonScale;
+    const radiusX = Math.max((Math.abs(radiusLonDeg) / 360) * width, 6);
+    const radiusY = Math.max((Math.abs(radiusLatDeg) / 180) * height, 6);
+
+    const positions = [centerX];
+    if (centerX - radiusX < 0) {
+      positions.push(centerX + width);
+    }
+    if (centerX + radiusX > width) {
+      positions.push(centerX - width);
+    }
+
+    positions.forEach(xPosition => {
+      impactMapContext.beginPath();
+      impactMapContext.ellipse(xPosition, centerY, radiusX, radiusY, 0, 0, Math.PI * 2);
+      impactMapContext.fillStyle = hexToRgba(band.fillColor ?? band.color ?? 0xff7043, band.opacity ?? 0.35);
+      impactMapContext.fill();
+      impactMapContext.lineWidth = 2;
+      impactMapContext.strokeStyle = hexToRgba(
+        band.outlineColor ?? band.fillColor ?? 0xffc199,
+        Math.min((band.opacity ?? 0.35) + 0.25, 0.95)
+      );
+      impactMapContext.stroke();
+    });
+  });
+
+  const markerPositions = [centerX];
+  if (centerX < 12) {
+    markerPositions.push(centerX + width);
+  }
+  if (centerX > width - 12) {
+    markerPositions.push(centerX - width);
+  }
+
+  markerPositions.forEach(xPosition => {
+    impactMapContext.beginPath();
+    impactMapContext.arc(xPosition, centerY, impacted ? 6 : 4, 0, Math.PI * 2);
+    impactMapContext.fillStyle = impacted ? 'rgba(255, 112, 67, 0.9)' : 'rgba(216, 229, 255, 0.95)';
+    impactMapContext.fill();
+    impactMapContext.lineWidth = 2;
+    impactMapContext.strokeStyle = impacted ? 'rgba(255, 170, 120, 0.95)' : 'rgba(90, 205, 255, 0.85)';
+    impactMapContext.stroke();
+
+    impactMapContext.beginPath();
+    impactMapContext.moveTo(xPosition - 10, centerY);
+    impactMapContext.lineTo(xPosition + 10, centerY);
+    impactMapContext.moveTo(xPosition, centerY - 10);
+    impactMapContext.lineTo(xPosition, centerY + 10);
+    impactMapContext.lineWidth = 1.2;
+    impactMapContext.strokeStyle = 'rgba(240, 248, 255, 0.55)';
+    impactMapContext.stroke();
+  });
+
+  if (impactMapCaptionElement) {
+    const locationText = `${formatLatitude(summary.latitude)}, ${formatLongitude(summary.longitude)}`;
+    const categoryLabel = summary.impactCategory?.name
+      ? ` (${summary.impactCategory.name}${summary.impactCategory.rangeLabel ? ` • ${summary.impactCategory.rangeLabel}` : ''})`
+      : '';
+    impactMapCaptionElement.textContent = `${impactMapCaptionBaseText} Focused near ${locationText}${categoryLabel}.`;
+  }
+}
+
+function setImpactMapSummary(summary) {
+  if (!summary) {
+    hideImpactMapPanel();
+    return;
+  }
+
+  impactMapSummary = {
+    ...summary,
+    effectBands: Array.isArray(summary.effectBands)
+      ? summary.effectBands.map(band => ({ ...band }))
+      : []
+  };
+  lastImpactMapImpacted = false;
+  lastImpactMapSecond = Number.isFinite(summary.timeToImpactSeconds)
+    ? Math.floor(summary.timeToImpactSeconds)
+    : null;
+
+  showImpactMapPanel();
+  renderImpactMap(impactMapSummary, { impacted: false });
+  updateImpactMapStatusText({
+    ...impactMapSummary,
+    remainingSeconds: summary.timeToImpactSeconds,
+    impacted: false
+  });
+}
+
+function updateImpactMapFromSnapshot(snapshot) {
+  if (!impactMapSummary || !snapshot) {
+    return;
+  }
+
+  const wholeSeconds = Number.isFinite(snapshot.remainingSeconds)
+    ? Math.max(0, Math.floor(snapshot.remainingSeconds))
+    : null;
+
+  const impactedChanged = snapshot.impacted !== lastImpactMapImpacted;
+  if (impactedChanged) {
+    lastImpactMapImpacted = snapshot.impacted;
+    renderImpactMap(impactMapSummary, { impacted: snapshot.impacted });
+  }
+
+  impactMapSummary.timeToImpactSeconds = snapshot.remainingSeconds;
+
+  if (impactedChanged || wholeSeconds !== lastImpactMapSecond) {
+    lastImpactMapSecond = wholeSeconds;
+    updateImpactMapStatusText({
+      ...impactMapSummary,
+      remainingSeconds: snapshot.remainingSeconds,
+      impacted: snapshot.impacted
+    });
+  }
+}
+
+function formatLatitude(latitude) {
+  if (!Number.isFinite(latitude)) {
+    return '—';
+  }
+
+  const hemisphere = latitude >= 0 ? 'N' : 'S';
+  return `${Math.abs(latitude).toFixed(1)}° ${hemisphere}`;
+}
+
+function formatLongitude(longitude) {
+  if (!Number.isFinite(longitude)) {
+    return '—';
+  }
+
+  const hemisphere = longitude >= 0 ? 'E' : 'W';
+  return `${Math.abs(longitude).toFixed(1)}° ${hemisphere}`;
+}
+
+function formatDuration(seconds) {
+  if (!Number.isFinite(seconds)) {
+    return '—';
+  }
+
+  const clamped = Math.max(seconds, 0);
+  const hours = Math.floor(clamped / 3600);
+  const minutes = Math.floor((clamped % 3600) / 60);
+  const secs = Math.floor(clamped % 60);
+
+  const segments = [];
+  if (hours > 0) {
+    segments.push(`${hours}h`);
+  }
+  if (minutes > 0 || hours > 0) {
+    segments.push(`${minutes}m`);
+  }
+  segments.push(`${secs}s`);
+  return segments.join(' ');
+}
+
+function setImpactorFeedback(message, variant = 'info') {
+  if (!impactorFeedbackElement) {
+    return;
+  }
+
+  if (!message) {
+    impactorFeedbackElement.textContent = '';
+    impactorFeedbackElement.dataset.variant = '';
+    impactorFeedbackElement.hidden = true;
+    return;
+  }
+
+  impactorFeedbackElement.textContent = message;
+  impactorFeedbackElement.dataset.variant = variant;
+  impactorFeedbackElement.hidden = false;
+}
+
+function clearImpactorResults() {
+  if (impactorResultsElement) {
+    impactorResultsElement.hidden = true;
+  }
+  if (impactorYieldValue) {
+    impactorYieldValue.textContent = '—';
+  }
+  if (impactorCategoryValue) {
+    impactorCategoryValue.textContent = '—';
+    impactorCategoryValue.title = '';
+    delete impactorCategoryValue.dataset.tooltip;
+    impactorCategoryValue.classList.remove('impactor-results__value--has-tooltip');
+    impactorCategoryValue.removeAttribute('tabindex');
+    impactorCategoryValue.removeAttribute('role');
+    impactorCategoryValue.removeAttribute('aria-label');
+  }
+  if (impactorImpactLocationValue) {
+    impactorImpactLocationValue.textContent = '—';
+  }
+  if (impactorTimeValue) {
+    impactorTimeValue.textContent = '—';
+  }
+  if (impactorEffectsList) {
+    impactorEffectsList.innerHTML = '';
+  }
+  hideImpactMapPanel();
+}
+
+function renderImpactorEffects(bands) {
+  if (!impactorEffectsList) {
+    return;
+  }
+
+  impactorEffectsList.innerHTML = '';
+
+  bands.forEach(band => {
+    if (!band || !Number.isFinite(band.radiusKm)) {
+      return;
+    }
+
+    const item = document.createElement('li');
+    item.className = 'impactor-effects__item';
+
+    const swatch = document.createElement('span');
+    swatch.className = 'impactor-effects__swatch';
+    const swatchColor = band.fillColor ?? band.color ?? 0xffffff;
+    swatch.style.backgroundColor = `#${swatchColor.toString(16).padStart(6, '0')}`;
+
+    const label = document.createElement('span');
+    label.className = 'impactor-effects__label';
+    label.textContent = band.label ?? 'Effect';
+
+    if (band.description) {
+      label.dataset.tooltip = band.description;
+      label.classList.add('impactor-effects__label--has-tooltip');
+      label.setAttribute('tabindex', '0');
+      label.setAttribute('role', 'button');
+      label.setAttribute(
+        'aria-label',
+        `${band.label ?? 'Effect'} — ${band.description}`
+      );
+    }
+
+    if (band.severity) {
+      const severity = document.createElement('span');
+      severity.className = `impactor-effects__severity impactor-effects__severity--${band.severity}`;
+      severity.textContent = band.severity;
+      label.appendChild(severity);
+    }
+
+    const value = document.createElement('span');
+    value.className = 'impactor-effects__value';
+    if (band.categoryName && band.categoryRangeLabel) {
+      value.textContent = `${band.categoryName} • ${band.categoryRangeLabel}`;
+    } else if (band.categoryName) {
+      value.textContent = band.categoryName;
+    } else if (band.categoryRangeLabel) {
+      value.textContent = band.categoryRangeLabel;
+    } else {
+      value.textContent = '—';
+    }
+
+    if (band.categoryDescription) {
+      value.dataset.tooltip = band.categoryDescription;
+      value.classList.add('impactor-effects__value--has-tooltip');
+      value.setAttribute('tabindex', '0');
+      value.setAttribute('role', 'note');
+      value.setAttribute(
+        'aria-label',
+        `${band.categoryName ?? 'Impact category'} — ${band.categoryDescription}`
+      );
+    }
+
+    item.appendChild(swatch);
+    item.appendChild(label);
+    item.appendChild(value);
+    impactorEffectsList.appendChild(item);
+  });
+}
+
+function updateImpactorResults(summary) {
+  if (!summary) {
+    clearImpactorResults();
+    return;
+  }
+
+  if (impactorResultsElement) {
+    impactorResultsElement.hidden = false;
+  }
+  if (impactorYieldValue) {
+    const yieldText = Number.isFinite(summary.yieldMegatons)
+      ? `${summary.yieldMegatons.toFixed(2)} Mt`
+      : '—';
+    impactorYieldValue.textContent = yieldText;
+  }
+  if (impactorCategoryValue) {
+    const category = summary.impactCategory ?? null;
+    if (category?.name) {
+      const labelParts = [category.name];
+      if (category.rangeLabel) {
+        labelParts.push(category.rangeLabel);
+      }
+      impactorCategoryValue.textContent = labelParts.join(' • ');
+
+      if (category.description) {
+        impactorCategoryValue.title = category.description;
+        impactorCategoryValue.dataset.tooltip = category.description;
+        impactorCategoryValue.classList.add('impactor-results__value--has-tooltip');
+        impactorCategoryValue.setAttribute('tabindex', '0');
+        impactorCategoryValue.setAttribute('role', 'note');
+        impactorCategoryValue.setAttribute(
+          'aria-label',
+          `${category.name} — ${category.description}`
+        );
+      } else {
+        impactorCategoryValue.title = '';
+        delete impactorCategoryValue.dataset.tooltip;
+        impactorCategoryValue.classList.remove('impactor-results__value--has-tooltip');
+        impactorCategoryValue.removeAttribute('tabindex');
+        impactorCategoryValue.removeAttribute('role');
+        impactorCategoryValue.removeAttribute('aria-label');
+      }
+    } else {
+      impactorCategoryValue.textContent = '—';
+      impactorCategoryValue.title = '';
+      delete impactorCategoryValue.dataset.tooltip;
+      impactorCategoryValue.classList.remove('impactor-results__value--has-tooltip');
+      impactorCategoryValue.removeAttribute('tabindex');
+      impactorCategoryValue.removeAttribute('role');
+      impactorCategoryValue.removeAttribute('aria-label');
+    }
+  }
+  if (impactorImpactLocationValue) {
+    const latitudeText = formatLatitude(summary.latitude);
+    const longitudeText = formatLongitude(summary.longitude);
+    impactorImpactLocationValue.textContent = `${latitudeText}, ${longitudeText}`;
+  }
+  if (impactorTimeValue && Number.isFinite(summary.timeToImpactSeconds)) {
+    impactorTimeValue.textContent = formatDuration(summary.timeToImpactSeconds);
+  }
+  if (Array.isArray(summary.effectBands)) {
+    renderImpactorEffects(summary.effectBands);
+  }
+
+  setImpactMapSummary(summary);
+}
+
+function updateImpactorCountdown(remainingSeconds, impacted) {
+  if (!impactorTimeValue) {
+    return;
+  }
+
+  if (!Number.isFinite(remainingSeconds)) {
+    impactorTimeValue.textContent = '—';
+    return;
+  }
+
+  if (impacted) {
+    impactorTimeValue.textContent = 'Impact';
+    return;
+  }
+
+  impactorTimeValue.textContent = formatDuration(remainingSeconds);
+}
+
+function setImpactorFormState({ isSubmitting = false, hasActiveImpactor = false } = {}) {
+  if (impactorSubmitButton) {
+    impactorSubmitButton.disabled = isSubmitting || hasActiveImpactor;
+  }
+  if (impactorResetButton) {
+    impactorResetButton.disabled = !hasActiveImpactor;
+  }
+  [impactorMassInput, impactorDiameterInput, impactorVelocityInput, impactorNameInput]
+    .filter(Boolean)
+    .forEach(input => {
+      input.disabled = hasActiveImpactor && !isSubmitting;
+    });
+}
+
+function getPositiveNumber(input, fieldName) {
+  if (!input) {
+    throw new Error(`${fieldName} input is unavailable.`);
+  }
+
+  const value = Number.parseFloat(input.value);
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new Error(`${fieldName} must be a positive number.`);
+  }
+  return value;
+}
+
+function handleImpactorSubmit(event) {
+  event.preventDefault();
+
+  if (!impactorManagerInstance) {
+    setImpactorFeedback('Impactor systems are not ready yet.', 'error');
+    return;
+  }
+
+  try {
+    setImpactorFeedback('');
+    const massKg = getPositiveNumber(impactorMassInput, 'Mass');
+    const diameterMeters = getPositiveNumber(impactorDiameterInput, 'Diameter');
+    const velocityKmPerSecond = getPositiveNumber(impactorVelocityInput, 'Velocity');
+    const name = impactorNameInput?.value?.trim() || 'Impactor';
+
+    setImpactorFormState({ isSubmitting: true, hasActiveImpactor: false });
+
+    const timing = getCurrentSimulationTiming();
+    const summary = impactorManagerInstance.spawn(
+      {
+        name,
+        massKg,
+        diameterMeters,
+        velocityKmPerSecond
+      },
+      { currentOrbitFrame: timing.orbitFrames }
+    );
+
+    updateImpactorResults({ ...summary, timeToImpactSeconds: summary.timeToImpactSeconds });
+    setImpactorFeedback('Impactor launched toward the selected impact zone.', 'success');
+    setImpactorFormState({ hasActiveImpactor: true });
+  } catch (error) {
+    console.error('Failed to create impactor', error);
+    clearImpactorResults();
+    setImpactorFormState({ hasActiveImpactor: false });
+    setImpactorFeedback(error.message || 'Unable to create impactor.', 'error');
+  }
+}
+
+function handleImpactorReset(event) {
+  event?.preventDefault?.();
+
+  if (!impactorManagerInstance) {
+    setImpactorFeedback('Impactor systems are not ready yet.', 'error');
+    return;
+  }
+
+  impactorManagerInstance.reset();
+  clearImpactorResults();
+  setImpactorFormState({ hasActiveImpactor: false });
+  setImpactorFeedback('Impactor cleared. Enter new parameters to generate another trajectory.', 'info');
+}
+
+clearImpactorResults();
+setImpactorFormState({ hasActiveImpactor: false });
+setImpactorFeedback('');
 
 let lastFrameTime = performance.now();
 
@@ -496,6 +1084,7 @@ let hoveredAsteroidEntry = null;
 const asteroidTrajectories = new Map();
 let asteroidImpactOverlay = null;
 let isMovingTowardsAsteroid = false;
+let impactorManagerInstance = null;
 
 const earthMaterial = new THREE.ShaderMaterial({
   uniforms: {
@@ -624,6 +1213,11 @@ const earth = createPlanet({
   atmosphere: earthAtmosphere,
   moons: earthMoon,
   orbit: planetOrbitCatalog.Earth
+});
+impactorManagerInstance = createImpactorManager({
+  scene,
+  earthMesh: earth?.planet ?? null,
+  earthOrbitElements: earth?.keplerElements ?? null
 });
 const mars = createPlanet({
   name: 'Mars',
@@ -1307,6 +1901,17 @@ function animate(now = performance.now()) {
   updateEarthDefaultView();
   updateAsteroids(timing);
 
+  const impactorSnapshot = impactorManagerInstance?.update({
+    orbitFrames: timing.orbitFrames
+  });
+  if (impactorSnapshot) {
+    updateImpactorCountdown(
+      impactorSnapshot.remainingSeconds,
+      impactorSnapshot.impacted
+    );
+    updateImpactMapFromSnapshot(impactorSnapshot);
+  }
+
   if (focusedAsteroidEntry && focusedAsteroidEntry.mesh) {
     focusedAsteroidEntry.mesh.getWorldPosition(asteroidFocusPoint);
 
@@ -1391,5 +1996,13 @@ window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
   composer.setSize(window.innerWidth, window.innerHeight);
 });
+
+if (impactorForm) {
+  impactorForm.addEventListener('submit', handleImpactorSubmit);
+}
+
+if (impactorResetButton) {
+  impactorResetButton.addEventListener('click', handleImpactorReset);
+}
 
 requestAnimationFrame(animate);
