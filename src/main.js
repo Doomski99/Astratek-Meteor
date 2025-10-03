@@ -56,6 +56,7 @@ import { propagateKepler } from './simulation/kepler.js';
 import { orbitPositionToScene, estimateOrbitalVelocity } from './simulation/orbitUtils.js';
 import { updateEarthVelocity } from './simulation/referenceFrames.js';
 import { EARTH_RADIUS_SCENE_UNITS } from './simulation/scales.js';
+import { createImpactorManager } from './simulation/impactorManager.js';
 
 const cubeTextureLoader = new THREE.CubeTextureLoader();
 const textureLoader = new THREE.TextureLoader();
@@ -95,6 +96,257 @@ const forceCollisionButton = document.getElementById('forceCollisionButton');
 if (forceCollisionButton) {
   forceCollisionButton.hidden = true;
 }
+
+const impactorForm = document.getElementById('impactorForm');
+const impactorNameInput = document.getElementById('impactorName');
+const impactorMassInput = document.getElementById('impactorMass');
+const impactorDiameterInput = document.getElementById('impactorDiameter');
+const impactorVelocityInput = document.getElementById('impactorVelocity');
+const impactorSubmitButton = impactorForm?.querySelector('button[type="submit"]') ?? null;
+const impactorResetButton = document.getElementById('impactorResetButton');
+const impactorFeedbackElement = document.querySelector('[data-impactor-feedback]');
+const impactorResultsElement = document.querySelector('[data-impactor-results]');
+const impactorYieldValue = document.querySelector('[data-impactor-yield]');
+const impactorImpactLocationValue = document.querySelector('[data-impactor-impact-location]');
+const impactorTimeValue = document.querySelector('[data-impactor-time]');
+const impactorEffectsList = document.querySelector('[data-impactor-effects]');
+
+function formatLatitude(latitude) {
+  if (!Number.isFinite(latitude)) {
+    return '—';
+  }
+
+  const hemisphere = latitude >= 0 ? 'N' : 'S';
+  return `${Math.abs(latitude).toFixed(1)}° ${hemisphere}`;
+}
+
+function formatLongitude(longitude) {
+  if (!Number.isFinite(longitude)) {
+    return '—';
+  }
+
+  const hemisphere = longitude >= 0 ? 'E' : 'W';
+  return `${Math.abs(longitude).toFixed(1)}° ${hemisphere}`;
+}
+
+function formatDuration(seconds) {
+  if (!Number.isFinite(seconds)) {
+    return '—';
+  }
+
+  const clamped = Math.max(seconds, 0);
+  const hours = Math.floor(clamped / 3600);
+  const minutes = Math.floor((clamped % 3600) / 60);
+  const secs = Math.floor(clamped % 60);
+
+  const segments = [];
+  if (hours > 0) {
+    segments.push(`${hours}h`);
+  }
+  if (minutes > 0 || hours > 0) {
+    segments.push(`${minutes}m`);
+  }
+  segments.push(`${secs}s`);
+  return segments.join(' ');
+}
+
+function setImpactorFeedback(message, variant = 'info') {
+  if (!impactorFeedbackElement) {
+    return;
+  }
+
+  if (!message) {
+    impactorFeedbackElement.textContent = '';
+    impactorFeedbackElement.dataset.variant = '';
+    impactorFeedbackElement.hidden = true;
+    return;
+  }
+
+  impactorFeedbackElement.textContent = message;
+  impactorFeedbackElement.dataset.variant = variant;
+  impactorFeedbackElement.hidden = false;
+}
+
+function clearImpactorResults() {
+  if (impactorResultsElement) {
+    impactorResultsElement.hidden = true;
+  }
+  if (impactorYieldValue) {
+    impactorYieldValue.textContent = '—';
+  }
+  if (impactorImpactLocationValue) {
+    impactorImpactLocationValue.textContent = '—';
+  }
+  if (impactorTimeValue) {
+    impactorTimeValue.textContent = '—';
+  }
+  if (impactorEffectsList) {
+    impactorEffectsList.innerHTML = '';
+  }
+}
+
+function renderImpactorEffects(bands) {
+  if (!impactorEffectsList) {
+    return;
+  }
+
+  impactorEffectsList.innerHTML = '';
+
+  bands.forEach(band => {
+    if (!band || !Number.isFinite(band.radiusKm)) {
+      return;
+    }
+
+    const item = document.createElement('li');
+    item.className = 'impactor-effects__item';
+
+    const swatch = document.createElement('span');
+    swatch.className = 'impactor-effects__swatch';
+    swatch.style.backgroundColor = `#${(band.color ?? 0xffffff).toString(16).padStart(6, '0')}`;
+
+    const label = document.createElement('span');
+    label.className = 'impactor-effects__label';
+    label.textContent = band.label ?? 'Effect';
+
+    const value = document.createElement('span');
+    value.className = 'impactor-effects__value';
+    value.textContent = `${band.radiusKm.toFixed(1)} km`;
+
+    item.appendChild(swatch);
+    item.appendChild(label);
+    item.appendChild(value);
+    impactorEffectsList.appendChild(item);
+  });
+}
+
+function updateImpactorResults(summary) {
+  if (!summary) {
+    clearImpactorResults();
+    return;
+  }
+
+  if (impactorResultsElement) {
+    impactorResultsElement.hidden = false;
+  }
+  if (impactorYieldValue) {
+    const yieldText = Number.isFinite(summary.yieldMegatons)
+      ? `${summary.yieldMegatons.toFixed(2)} Mt`
+      : '—';
+    impactorYieldValue.textContent = yieldText;
+  }
+  if (impactorImpactLocationValue) {
+    const latitudeText = formatLatitude(summary.latitude);
+    const longitudeText = formatLongitude(summary.longitude);
+    impactorImpactLocationValue.textContent = `${latitudeText}, ${longitudeText}`;
+  }
+  if (impactorTimeValue && Number.isFinite(summary.timeToImpactSeconds)) {
+    impactorTimeValue.textContent = formatDuration(summary.timeToImpactSeconds);
+  }
+  if (Array.isArray(summary.effectBands)) {
+    renderImpactorEffects(summary.effectBands);
+  }
+}
+
+function updateImpactorCountdown(remainingSeconds, impacted) {
+  if (!impactorTimeValue) {
+    return;
+  }
+
+  if (!Number.isFinite(remainingSeconds)) {
+    impactorTimeValue.textContent = '—';
+    return;
+  }
+
+  if (impacted) {
+    impactorTimeValue.textContent = 'Impact';
+    return;
+  }
+
+  impactorTimeValue.textContent = formatDuration(remainingSeconds);
+}
+
+function setImpactorFormState({ isSubmitting = false, hasActiveImpactor = false } = {}) {
+  if (impactorSubmitButton) {
+    impactorSubmitButton.disabled = isSubmitting || hasActiveImpactor;
+  }
+  if (impactorResetButton) {
+    impactorResetButton.disabled = !hasActiveImpactor;
+  }
+  [impactorMassInput, impactorDiameterInput, impactorVelocityInput, impactorNameInput]
+    .filter(Boolean)
+    .forEach(input => {
+      input.disabled = hasActiveImpactor && !isSubmitting;
+    });
+}
+
+function getPositiveNumber(input, fieldName) {
+  if (!input) {
+    throw new Error(`${fieldName} input is unavailable.`);
+  }
+
+  const value = Number.parseFloat(input.value);
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new Error(`${fieldName} must be a positive number.`);
+  }
+  return value;
+}
+
+function handleImpactorSubmit(event) {
+  event.preventDefault();
+
+  if (!impactorManagerInstance) {
+    setImpactorFeedback('Impactor systems are not ready yet.', 'error');
+    return;
+  }
+
+  try {
+    setImpactorFeedback('');
+    const massKg = getPositiveNumber(impactorMassInput, 'Mass');
+    const diameterMeters = getPositiveNumber(impactorDiameterInput, 'Diameter');
+    const velocityKmPerSecond = getPositiveNumber(impactorVelocityInput, 'Velocity');
+    const name = impactorNameInput?.value?.trim() || 'Impactor';
+
+    setImpactorFormState({ isSubmitting: true, hasActiveImpactor: false });
+
+    const timing = getCurrentSimulationTiming();
+    const summary = impactorManagerInstance.spawn(
+      {
+        name,
+        massKg,
+        diameterMeters,
+        velocityKmPerSecond
+      },
+      { currentOrbitFrame: timing.orbitFrames }
+    );
+
+    updateImpactorResults({ ...summary, timeToImpactSeconds: summary.timeToImpactSeconds });
+    setImpactorFeedback('Impactor launched toward the selected impact zone.', 'success');
+    setImpactorFormState({ hasActiveImpactor: true });
+  } catch (error) {
+    console.error('Failed to create impactor', error);
+    clearImpactorResults();
+    setImpactorFormState({ hasActiveImpactor: false });
+    setImpactorFeedback(error.message || 'Unable to create impactor.', 'error');
+  }
+}
+
+function handleImpactorReset(event) {
+  event?.preventDefault?.();
+
+  if (!impactorManagerInstance) {
+    setImpactorFeedback('Impactor systems are not ready yet.', 'error');
+    return;
+  }
+
+  impactorManagerInstance.reset();
+  clearImpactorResults();
+  setImpactorFormState({ hasActiveImpactor: false });
+  setImpactorFeedback('Impactor cleared. Enter new parameters to generate another trajectory.', 'info');
+}
+
+clearImpactorResults();
+setImpactorFormState({ hasActiveImpactor: false });
+setImpactorFeedback('');
 
 let lastFrameTime = performance.now();
 
@@ -496,6 +748,7 @@ let hoveredAsteroidEntry = null;
 const asteroidTrajectories = new Map();
 let asteroidImpactOverlay = null;
 let isMovingTowardsAsteroid = false;
+let impactorManagerInstance = null;
 
 const earthMaterial = new THREE.ShaderMaterial({
   uniforms: {
@@ -624,6 +877,10 @@ const earth = createPlanet({
   atmosphere: earthAtmosphere,
   moons: earthMoon,
   orbit: planetOrbitCatalog.Earth
+});
+impactorManagerInstance = createImpactorManager({
+  scene,
+  earthMesh: earth?.planet ?? null
 });
 const mars = createPlanet({
   name: 'Mars',
@@ -1307,6 +1564,16 @@ function animate(now = performance.now()) {
   updateEarthDefaultView();
   updateAsteroids(timing);
 
+  const impactorSnapshot = impactorManagerInstance?.update({
+    orbitFrames: timing.orbitFrames
+  });
+  if (impactorSnapshot) {
+    updateImpactorCountdown(
+      impactorSnapshot.remainingSeconds,
+      impactorSnapshot.impacted
+    );
+  }
+
   if (focusedAsteroidEntry && focusedAsteroidEntry.mesh) {
     focusedAsteroidEntry.mesh.getWorldPosition(asteroidFocusPoint);
 
@@ -1391,5 +1658,13 @@ window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
   composer.setSize(window.innerWidth, window.innerHeight);
 });
+
+if (impactorForm) {
+  impactorForm.addEventListener('submit', handleImpactorSubmit);
+}
+
+if (impactorResetButton) {
+  impactorResetButton.addEventListener('click', handleImpactorReset);
+}
 
 requestAnimationFrame(animate);

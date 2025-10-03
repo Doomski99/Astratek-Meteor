@@ -154,7 +154,58 @@ function createTrajectoryLine(points) {
   return line;
 }
 
-function createImpactOverlayMesh(entry, earthRadius, { colors, angularRadii, elevation = 0.1 } = {}) {
+function createImpactOverlayMesh(
+  entry,
+  earthRadius,
+  { colors, angularRadii, elevation = 0.1, bands } = {}
+) {
+  const defaultUp = new THREE.Vector3(0, 1, 0);
+  const impactNormal = entry?.earthOrbitIntersection?.impactNormal;
+  const hasCustomBands = Array.isArray(bands) && bands.length > 0;
+  let orientationQuaternion = null;
+
+  if (impactNormal instanceof THREE.Vector3 && impactNormal.lengthSq() > 1e-8) {
+    const normal = impactNormal.clone().normalize();
+    orientationQuaternion = new THREE.Quaternion().setFromUnitVectors(defaultUp, normal);
+  }
+
+  if (hasCustomBands) {
+    const overlayGroup = new THREE.Group();
+    overlayGroup.frustumCulled = false;
+
+    bands.forEach((band, index) => {
+      const angularRadiusRad = Math.min(Math.max(band.angularRadiusRad ?? 0, 0), Math.PI);
+      if (angularRadiusRad <= 0) {
+        return;
+      }
+
+      const overlayRadius = earthRadius + Math.max(elevation + index * 0.05, 0);
+      const geometry = new THREE.SphereGeometry(overlayRadius, 64, 32, 0, Math.PI * 2, 0, angularRadiusRad);
+      const material = new THREE.MeshBasicMaterial({
+        color: band.color ?? 0xffffff,
+        transparent: true,
+        opacity: band.opacity ?? 0.22,
+        side: THREE.DoubleSide,
+        depthWrite: false
+      });
+
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.position.set(0, 0, 0);
+      mesh.frustumCulled = false;
+      mesh.renderOrder = 2 + index;
+
+      if (orientationQuaternion) {
+        mesh.quaternion.copy(orientationQuaternion);
+      } else {
+        mesh.rotation.x = -Math.PI / 2;
+      }
+
+      overlayGroup.add(mesh);
+    });
+
+    return overlayGroup.children.length > 0 ? overlayGroup : null;
+  }
+
   const yieldBand = getYieldBand(entry.data.tntYieldMt);
   const color = colors?.[yieldBand] ?? 0xffffff;
   const angularRadiusDeg = angularRadii?.[yieldBand] ?? 0;
@@ -176,13 +227,8 @@ function createImpactOverlayMesh(entry, earthRadius, { colors, angularRadii, ele
   overlay.frustumCulled = false;
   overlay.renderOrder = 2;
 
-  const defaultUp = new THREE.Vector3(0, 1, 0);
-  const impactNormal = entry?.earthOrbitIntersection?.impactNormal;
-
-  if (impactNormal instanceof THREE.Vector3 && impactNormal.lengthSq() > 1e-8) {
-    const normal = impactNormal.clone().normalize();
-    const quaternion = new THREE.Quaternion().setFromUnitVectors(defaultUp, normal);
-    overlay.quaternion.copy(quaternion);
+  if (orientationQuaternion) {
+    overlay.quaternion.copy(orientationQuaternion);
   } else {
     overlay.rotation.x = -Math.PI / 2;
   }
