@@ -1380,8 +1380,6 @@ function animate(now = performance.now()) {
   composer.render();
 }
 
-updateCollisionButtonState();
-
 initializeAsteroids().catch(error => {
   console.error('Failed to initialize asteroids', error);
 });
