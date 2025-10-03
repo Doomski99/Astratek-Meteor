@@ -175,6 +175,40 @@ function createImpactOverlayMesh(
 
     const sortedBands = [...bands].sort((a, b) => (a.radiusKm ?? 0) - (b.radiusKm ?? 0));
 
+    const vertexShader = `
+      varying vec3 vLocalNormal;
+
+      void main() {
+        vLocalNormal = normalize(normal);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `;
+
+    const fragmentShader = `
+      varying vec3 vLocalNormal;
+      uniform vec3 uColor;
+      uniform float uOpacity;
+      uniform float uAngularRadius;
+      uniform float uFeather;
+
+      void main() {
+        vec3 normal = normalize(vLocalNormal);
+        float cosAngle = clamp(dot(normal, vec3(0.0, 1.0, 0.0)), -1.0, 1.0);
+        float angle = acos(cosAngle);
+        float outerEdge = max(uAngularRadius, 0.0);
+        if (outerEdge <= 0.0001) {
+          discard;
+        }
+        float innerEdge = max(outerEdge - uFeather, 0.0);
+        float mask = 1.0 - smoothstep(innerEdge, outerEdge, angle);
+        float alpha = mask * uOpacity;
+        if (alpha <= 0.001) {
+          discard;
+        }
+        gl_FragColor = vec4(uColor, alpha);
+      }
+    `;
+
     sortedBands.forEach((band, index) => {
       const angularRadiusRad = Math.min(Math.max(band.angularRadiusRad ?? 0, 0), Math.PI);
       if (angularRadiusRad <= 0) {
@@ -183,23 +217,28 @@ function createImpactOverlayMesh(
 
       const overlayRadius = earthRadius + Math.max(elevation + index * 0.12, 0);
       const renderOrderBase = 100 + (sortedBands.length - index - 1) * 2;
-      const geometry = new THREE.SphereGeometry(
-        overlayRadius,
-        96,
-        48,
-        0,
-        Math.PI * 2,
-        0,
-        angularRadiusRad
+      const geometry = new THREE.SphereGeometry(overlayRadius, 128, 64);
+      const color = new THREE.Color(band.fillColor ?? band.color ?? 0xffffff);
+      const opacity = Math.min(Math.max(band.opacity ?? 0.35, 0), 1);
+      const feather = Math.max(
+        Math.min(band.featherRadians ?? THREE.MathUtils.degToRad(band.featherDegrees ?? 5), Math.PI),
+        0
       );
-      const material = new THREE.MeshBasicMaterial({
-        color: band.fillColor ?? band.color ?? 0xffffff,
+
+      const material = new THREE.ShaderMaterial({
+        uniforms: {
+          uColor: { value: color },
+          uOpacity: { value: opacity },
+          uAngularRadius: { value: angularRadiusRad },
+          uFeather: { value: Math.min(feather, angularRadiusRad) }
+        },
         transparent: true,
-        opacity: band.opacity ?? 0.24,
-        side: THREE.DoubleSide,
         depthWrite: false,
         depthTest: false,
-        blending: THREE.NormalBlending
+        side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending,
+        vertexShader,
+        fragmentShader
       });
 
       const mesh = new THREE.Mesh(geometry, material);
@@ -211,18 +250,18 @@ function createImpactOverlayMesh(
       overlayGroup.add(mesh);
 
       const outlineRadius = overlayRadius * Math.sin(angularRadiusRad);
-      const outlineHeight = overlayRadius * Math.cos(angularRadiusRad) + 0.001;
+      const outlineHeight = overlayRadius * Math.cos(angularRadiusRad) + 0.002;
       const outlineThickness = Math.max(outlineRadius * 0.045, 0.05);
       if (outlineRadius > 0.001) {
         const outlineGeometry = new THREE.RingGeometry(
           Math.max(outlineRadius - outlineThickness, 0),
           outlineRadius,
-          128
+          196
         );
         const outlineMaterial = new THREE.MeshBasicMaterial({
           color: band.outlineColor ?? band.fillColor ?? 0xffffff,
           transparent: true,
-          opacity: Math.min((band.opacity ?? 0.24) + 0.2, 0.8),
+          opacity: Math.min((band.outlineOpacity ?? (band.opacity ?? 0.35) + 0.25), 1),
           side: THREE.DoubleSide,
           depthWrite: false,
           depthTest: false,

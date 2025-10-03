@@ -61,7 +61,8 @@ function computeEffectBands(yieldMegatons) {
       radiusKm: 0.9 * yieldExponentFourTenths,
       fillColor: 0xff5722,
       outlineColor: 0xffab91,
-      opacity: 0.45
+      opacity: 0.5,
+      featherDegrees: 3
     },
     {
       id: 'severe-blast',
@@ -70,7 +71,8 @@ function computeEffectBands(yieldMegatons) {
       radiusKm: 2.4 * yieldCubeRoot,
       fillColor: 0xff7043,
       outlineColor: 0xffccbc,
-      opacity: 0.32
+      opacity: 0.38,
+      featherDegrees: 4
     },
     {
       id: 'moderate-blast',
@@ -79,7 +81,8 @@ function computeEffectBands(yieldMegatons) {
       radiusKm: 4.1 * yieldCubeRoot,
       fillColor: 0xff9800,
       outlineColor: 0xffe0b2,
-      opacity: 0.26
+      opacity: 0.3,
+      featherDegrees: 5
     },
     {
       id: 'thermal',
@@ -88,7 +91,8 @@ function computeEffectBands(yieldMegatons) {
       radiusKm: 7.2 * yieldExponentFourTenths,
       fillColor: 0xffe082,
       outlineColor: 0xfff3e0,
-      opacity: 0.2
+      opacity: 0.22,
+      featherDegrees: 6
     }
   ];
 
