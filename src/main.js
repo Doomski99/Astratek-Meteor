@@ -415,14 +415,6 @@ function cloneVector3(value) {
   return null;
 }
 
-function vector3ToPlain(vector) {
-  if (!(vector instanceof THREE.Vector3)) {
-    return null;
-  }
-
-  return { x: vector.x, y: vector.y, z: vector.z };
-}
-
 function deriveImpactNormal(pointA, pointB) {
   const hasA = pointA instanceof THREE.Vector3;
   const hasB = pointB instanceof THREE.Vector3;
@@ -1092,15 +1084,6 @@ function applyEarthIntersectionResult(entry, intersection) {
   };
 
   entry.earthOrbitIntersection = info;
-  if (entry.data) {
-    entry.data.earthOrbitIntersection = {
-      intersects: info.intersects,
-      minimumDistanceSceneUnits,
-      thresholdSceneUnits,
-      impactPoint: vector3ToPlain(closestPointB),
-      impactNormal: vector3ToPlain(impactNormal)
-    };
-  }
 
   return info;
 }
@@ -1150,9 +1133,6 @@ function retargetAsteroidForCollision(entry) {
     }
 
     entry.keplerElements.semiMajorAxis = nextSemiMajorAxis;
-    if (entry.data?.orbit) {
-      entry.data.orbit.semiMajorAxis = nextSemiMajorAxis;
-    }
 
     intersection = estimateOrbitIntersection(
       entry.keplerElements,
@@ -1175,9 +1155,6 @@ function retargetAsteroidForCollision(entry) {
         const fallbackSemiMajorAxis = entry.keplerElements.semiMajorAxis * ratio;
         if (Number.isFinite(fallbackSemiMajorAxis) && fallbackSemiMajorAxis > 0) {
           entry.keplerElements.semiMajorAxis = fallbackSemiMajorAxis;
-          if (entry.data?.orbit) {
-            entry.data.orbit.semiMajorAxis = fallbackSemiMajorAxis;
-          }
 
           const finalIntersection = estimateOrbitIntersection(
             entry.keplerElements,

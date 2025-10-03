@@ -546,14 +546,6 @@ function cloneVector3(vector) {
   return vector instanceof THREE.Vector3 ? vector.clone() : null;
 }
 
-function toPlainVector3(vector) {
-  if (!(vector instanceof THREE.Vector3)) {
-    return null;
-  }
-
-  return { x: vector.x, y: vector.y, z: vector.z };
-}
-
 function deriveImpactNormal(pointA, pointB) {
   const hasPointA = pointA instanceof THREE.Vector3;
   const hasPointB = pointB instanceof THREE.Vector3;
@@ -604,14 +596,6 @@ function createAsteroidEntries(catalog = []) {
       impactNormal
     };
 
-    const earthOrbitIntersectionData = {
-      intersects: earthOrbitIntersection.intersects,
-      minimumDistanceSceneUnits,
-      thresholdSceneUnits,
-      impactPoint: closestPointB ? toPlainVector3(closestPointB) : null,
-      impactNormal: impactNormal ? toPlainVector3(impactNormal) : null
-    };
-
     return {
       data: {
         ...data,
@@ -624,8 +608,7 @@ function createAsteroidEntries(catalog = []) {
               kilometersPerSecond: { x: 0, y: 0, z: 0 },
               speedKilometersPerSecond: 0
             }
-          },
-        earthOrbitIntersection: earthOrbitIntersectionData
+          }
       },
       mesh: null,
       keplerElements,
