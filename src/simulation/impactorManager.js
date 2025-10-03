@@ -12,6 +12,7 @@ import {
 } from './asteroids.js';
 import { propagateKepler } from './kepler.js';
 import { orbitPositionToScene, estimateOrbitalVelocity } from './orbitUtils.js';
+import { getImpactYieldCategory } from '../data/impactYieldCategories.js';
 
 const MEGATON_JOULES = 4.184e15;
 const EARTH_RADIUS_KILOMETERS = 6371;
@@ -23,6 +24,49 @@ const TWO_PI = Math.PI * 2;
 const tempOrbitVector = new THREE.Vector3();
 const tempVelocity = new THREE.Vector3();
 const kHat = new THREE.Vector3(0, 0, 1);
+
+const BASE_EFFECT_BANDS = [
+  {
+    id: 'fireball',
+    defaultLabel: 'Fireball (Total Destruction)',
+    fillColor: 0xff5722,
+    outlineColor: 0xffab91,
+    opacity: 0.5,
+    featherDegrees: 3,
+    defaultSeverity: 'critical',
+    radiusCalculator: ({ yieldExponentFourTenths }) => 0.9 * yieldExponentFourTenths
+  },
+  {
+    id: 'severe-blast',
+    defaultLabel: 'Severe Blast Damage',
+    fillColor: 0xff7043,
+    outlineColor: 0xffccbc,
+    opacity: 0.38,
+    featherDegrees: 4,
+    defaultSeverity: 'high',
+    radiusCalculator: ({ yieldCubeRoot }) => 2.4 * yieldCubeRoot
+  },
+  {
+    id: 'moderate-blast',
+    defaultLabel: 'Moderate Blast Damage',
+    fillColor: 0xff9800,
+    outlineColor: 0xffe0b2,
+    opacity: 0.3,
+    featherDegrees: 5,
+    defaultSeverity: 'elevated',
+    radiusCalculator: ({ yieldCubeRoot }) => 4.1 * yieldCubeRoot
+  },
+  {
+    id: 'thermal',
+    defaultLabel: 'Thermal Radiation',
+    fillColor: 0xffe082,
+    outlineColor: 0xfff3e0,
+    opacity: 0.22,
+    featherDegrees: 6,
+    defaultSeverity: 'area',
+    radiusCalculator: ({ yieldExponentFourTenths }) => 7.2 * yieldExponentFourTenths
+  }
+];
 
 function wrapAngle(angle) {
   if (!Number.isFinite(angle)) {
@@ -52,57 +96,36 @@ function computeEffectBands(yieldMegatons) {
   const safeYield = Math.max(yieldMegatons, 0.001);
   const yieldCubeRoot = Math.cbrt(safeYield);
   const yieldExponentFourTenths = Math.pow(safeYield, 0.4);
+  const category = getImpactYieldCategory(safeYield);
 
-  const bands = [
-    {
-      id: 'fireball',
-      label: 'Fireball (Total Destruction)',
-      severity: 'critical',
-      radiusKm: 0.9 * yieldExponentFourTenths,
-      fillColor: 0xff5722,
-      outlineColor: 0xffab91,
-      opacity: 0.5,
-      featherDegrees: 3
-    },
-    {
-      id: 'severe-blast',
-      label: 'Severe Blast Damage',
-      severity: 'high',
-      radiusKm: 2.4 * yieldCubeRoot,
-      fillColor: 0xff7043,
-      outlineColor: 0xffccbc,
-      opacity: 0.38,
-      featherDegrees: 4
-    },
-    {
-      id: 'moderate-blast',
-      label: 'Moderate Blast Damage',
-      severity: 'elevated',
-      radiusKm: 4.1 * yieldCubeRoot,
-      fillColor: 0xff9800,
-      outlineColor: 0xffe0b2,
-      opacity: 0.3,
-      featherDegrees: 5
-    },
-    {
-      id: 'thermal',
-      label: 'Thermal Radiation',
-      severity: 'area',
-      radiusKm: 7.2 * yieldExponentFourTenths,
-      fillColor: 0xffe082,
-      outlineColor: 0xfff3e0,
-      opacity: 0.22,
-      featherDegrees: 6
-    }
-  ];
+  const bands = BASE_EFFECT_BANDS.map(base => {
+    const radiusKm = base.radiusCalculator({ yieldCubeRoot, yieldExponentFourTenths, safeYield });
+    const categoryEffect = category?.effects?.[base.id] ?? null;
+    const label = categoryEffect?.title ?? base.defaultLabel;
+    const severity = categoryEffect?.severity ?? base.defaultSeverity;
+    const description = categoryEffect?.description ?? '';
 
-  return bands
-    .map(band => ({
-      ...band,
-      color: band.fillColor,
-      angularRadiusRad: Math.min((band.radiusKm / EARTH_RADIUS_KILOMETERS) || 0, Math.PI)
-    }))
-    .filter(band => band.radiusKm > 0.01 && band.angularRadiusRad > 0);
+    const angularRadiusRad = Math.min((radiusKm / EARTH_RADIUS_KILOMETERS) || 0, Math.PI);
+    return {
+      id: base.id,
+      label,
+      severity,
+      description,
+      radiusKm,
+      fillColor: base.fillColor,
+      outlineColor: base.outlineColor,
+      opacity: base.opacity,
+      featherDegrees: base.featherDegrees,
+      color: base.fillColor,
+      angularRadiusRad,
+      categoryId: category?.id,
+      categoryName: category?.name,
+      categoryRangeLabel: category?.rangeLabel,
+      categoryDescription: category?.description
+    };
+  }).filter(band => band.radiusKm > 0.01 && band.angularRadiusRad > 0);
+
+  return { category, bands };
 }
 
 function createKeplerFromState(positionKm, velocityKmPerSecond, epochFrame) {
@@ -235,7 +258,7 @@ function buildImpactorState({
   }
 
   const yieldMegatons = computeYieldMegatons(massKg, velocityKmPerSecond);
-  const effectBands = computeEffectBands(yieldMegatons);
+  const { category: impactCategory, bands: effectBands } = computeEffectBands(yieldMegatons);
 
   const latitude = THREE.MathUtils.randFloatSpread(180);
   const longitude = THREE.MathUtils.randFloatSpread(360);
@@ -363,6 +386,7 @@ function buildImpactorState({
     trajectoryLine,
     effectBands,
     yieldMegatons,
+    impactCategory,
     impactNormalScene,
     keplerElements,
     impactEpochFrame,
@@ -414,7 +438,8 @@ function createImpactorManager({ scene, earthMesh, earthOrbitElements }) {
     longitude: null,
     yieldMegatons: null,
     effectBands: [],
-    name: null
+    name: null,
+    impactCategory: null
   };
 
   function getSnapshot() {
@@ -428,7 +453,8 @@ function createImpactorManager({ scene, earthMesh, earthOrbitElements }) {
       longitude: snapshot.longitude,
       yieldMegatons: snapshot.yieldMegatons,
       effectBands: snapshot.effectBands,
-      name: snapshot.name
+      name: snapshot.name,
+      impactCategory: snapshot.impactCategory
     };
   }
 
@@ -446,6 +472,7 @@ function createImpactorManager({ scene, earthMesh, earthOrbitElements }) {
     snapshot.yieldMegatons = null;
     snapshot.effectBands = [];
     snapshot.name = null;
+    snapshot.impactCategory = null;
     return true;
   }
 
@@ -469,13 +496,25 @@ function createImpactorManager({ scene, earthMesh, earthOrbitElements }) {
     snapshot.effectBands = state.effectBands;
     snapshot.name = state.name;
 
+    const impactCategorySummary = state.impactCategory
+      ? {
+          id: state.impactCategory.id,
+          name: state.impactCategory.name,
+          rangeLabel: state.impactCategory.rangeLabel,
+          description: state.impactCategory.description
+        }
+      : null;
+
+    snapshot.impactCategory = impactCategorySummary;
+
     return {
       yieldMegatons: state.yieldMegatons,
       latitude: state.latitude,
       longitude: state.longitude,
       effectBands: state.effectBands,
       timeToImpactSeconds: state.timeToImpactSeconds,
-      name: state.name
+      name: state.name,
+      impactCategory: impactCategorySummary
     };
   }
 

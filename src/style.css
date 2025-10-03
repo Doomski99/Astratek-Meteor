@@ -516,6 +516,76 @@ p {
     font-variant-numeric: tabular-nums;
 }
 
+.impactor-results__value--has-tooltip,
+.impactor-effects__label--has-tooltip,
+.impactor-effects__value--has-tooltip {
+    position: relative;
+    cursor: help;
+}
+
+.impactor-effects__label--has-tooltip:focus-visible,
+.impactor-effects__value--has-tooltip:focus-visible,
+.impactor-results__value--has-tooltip:focus-visible {
+    outline: 1px dashed rgba(255, 207, 144, 0.75);
+    outline-offset: 2px;
+}
+
+.impactor-effects__label--has-tooltip::after,
+.impactor-effects__value--has-tooltip::after,
+.impactor-results__value--has-tooltip::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    left: 0;
+    bottom: calc(100% + 12px);
+    width: min(280px, 70vw);
+    padding: 8px 10px;
+    border-radius: 6px;
+    background: rgba(6, 14, 32, 0.95);
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.5);
+    color: #f0f4ff;
+    font-size: 11px;
+    line-height: 1.45;
+    letter-spacing: 0.01em;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(6px);
+    transition: opacity 0.18s ease, transform 0.18s ease;
+    z-index: 30;
+    white-space: normal;
+}
+
+.impactor-effects__label--has-tooltip::before,
+.impactor-effects__value--has-tooltip::before,
+.impactor-results__value--has-tooltip::before {
+    content: '';
+    position: absolute;
+    left: 12px;
+    bottom: calc(100% + 6px);
+    width: 10px;
+    height: 10px;
+    background: rgba(6, 14, 32, 0.95);
+    transform: translateY(6px) rotate(45deg);
+    opacity: 0;
+    transition: opacity 0.18s ease, transform 0.18s ease;
+    z-index: 25;
+}
+
+.impactor-effects__label--has-tooltip:hover::after,
+.impactor-effects__label--has-tooltip:hover::before,
+.impactor-effects__label--has-tooltip:focus-visible::after,
+.impactor-effects__label--has-tooltip:focus-visible::before,
+.impactor-effects__value--has-tooltip:hover::after,
+.impactor-effects__value--has-tooltip:hover::before,
+.impactor-effects__value--has-tooltip:focus-visible::after,
+.impactor-effects__value--has-tooltip:focus-visible::before,
+.impactor-results__value--has-tooltip:hover::after,
+.impactor-results__value--has-tooltip:hover::before,
+.impactor-results__value--has-tooltip:focus-visible::after,
+.impactor-results__value--has-tooltip:focus-visible::before {
+    opacity: 1;
+    transform: translateY(0);
+}
+
 .impactor-effects__title {
     margin: 4px 0 2px;
     font-size: 12px;

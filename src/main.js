@@ -107,6 +107,7 @@ const impactorResetButton = document.getElementById('impactorResetButton');
 const impactorFeedbackElement = document.querySelector('[data-impactor-feedback]');
 const impactorResultsElement = document.querySelector('[data-impactor-results]');
 const impactorYieldValue = document.querySelector('[data-impactor-yield]');
+const impactorCategoryValue = document.querySelector('[data-impactor-category]');
 const impactorImpactLocationValue = document.querySelector('[data-impactor-impact-location]');
 const impactorTimeValue = document.querySelector('[data-impactor-time]');
 const impactorEffectsList = document.querySelector('[data-impactor-effects]');
@@ -183,7 +184,8 @@ function updateImpactMapStatusText({
   latitude,
   longitude,
   remainingSeconds,
-  impacted
+  impacted,
+  impactCategory
 } = {}) {
   if (!impactMapStatusElement) {
     return;
@@ -200,8 +202,11 @@ function updateImpactMapStatusText({
     : Number.isFinite(remainingSeconds)
       ? `Impact in ${formatDuration(Math.max(remainingSeconds, 0))}`
       : 'Impact pending';
+  const categoryText = impactCategory?.name
+    ? ` (${impactCategory.name}${impactCategory.rangeLabel ? ` • ${impactCategory.rangeLabel}` : ''})`
+    : '';
 
-  impactMapStatusElement.textContent = `${name} — ${locationText} — ${timeText}`;
+  impactMapStatusElement.textContent = `${name}${categoryText} — ${locationText} — ${timeText}`;
 }
 
 function renderImpactMap(summary, { impacted = false } = {}) {
@@ -295,7 +300,10 @@ function renderImpactMap(summary, { impacted = false } = {}) {
 
   if (impactMapCaptionElement) {
     const locationText = `${formatLatitude(summary.latitude)}, ${formatLongitude(summary.longitude)}`;
-    impactMapCaptionElement.textContent = `${impactMapCaptionBaseText} Focused near ${locationText}.`;
+    const categoryLabel = summary.impactCategory?.name
+      ? ` (${summary.impactCategory.name}${summary.impactCategory.rangeLabel ? ` • ${summary.impactCategory.rangeLabel}` : ''})`
+      : '';
+    impactMapCaptionElement.textContent = `${impactMapCaptionBaseText} Focused near ${locationText}${categoryLabel}.`;
   }
 }
 
@@ -415,6 +423,15 @@ function clearImpactorResults() {
   if (impactorYieldValue) {
     impactorYieldValue.textContent = '—';
   }
+  if (impactorCategoryValue) {
+    impactorCategoryValue.textContent = '—';
+    impactorCategoryValue.title = '';
+    delete impactorCategoryValue.dataset.tooltip;
+    impactorCategoryValue.classList.remove('impactor-results__value--has-tooltip');
+    impactorCategoryValue.removeAttribute('tabindex');
+    impactorCategoryValue.removeAttribute('role');
+    impactorCategoryValue.removeAttribute('aria-label');
+  }
   if (impactorImpactLocationValue) {
     impactorImpactLocationValue.textContent = '—';
   }
@@ -451,6 +468,17 @@ function renderImpactorEffects(bands) {
     label.className = 'impactor-effects__label';
     label.textContent = band.label ?? 'Effect';
 
+    if (band.description) {
+      label.dataset.tooltip = band.description;
+      label.classList.add('impactor-effects__label--has-tooltip');
+      label.setAttribute('tabindex', '0');
+      label.setAttribute('role', 'button');
+      label.setAttribute(
+        'aria-label',
+        `${band.label ?? 'Effect'} — ${band.description}`
+      );
+    }
+
     if (band.severity) {
       const severity = document.createElement('span');
       severity.className = `impactor-effects__severity impactor-effects__severity--${band.severity}`;
@@ -460,7 +488,26 @@ function renderImpactorEffects(bands) {
 
     const value = document.createElement('span');
     value.className = 'impactor-effects__value';
-    value.textContent = `${band.radiusKm.toFixed(1)} km`;
+    if (band.categoryName && band.categoryRangeLabel) {
+      value.textContent = `${band.categoryName} • ${band.categoryRangeLabel}`;
+    } else if (band.categoryName) {
+      value.textContent = band.categoryName;
+    } else if (band.categoryRangeLabel) {
+      value.textContent = band.categoryRangeLabel;
+    } else {
+      value.textContent = '—';
+    }
+
+    if (band.categoryDescription) {
+      value.dataset.tooltip = band.categoryDescription;
+      value.classList.add('impactor-effects__value--has-tooltip');
+      value.setAttribute('tabindex', '0');
+      value.setAttribute('role', 'note');
+      value.setAttribute(
+        'aria-label',
+        `${band.categoryName ?? 'Impact category'} — ${band.categoryDescription}`
+      );
+    }
 
     item.appendChild(swatch);
     item.appendChild(label);
@@ -483,6 +530,43 @@ function updateImpactorResults(summary) {
       ? `${summary.yieldMegatons.toFixed(2)} Mt`
       : '—';
     impactorYieldValue.textContent = yieldText;
+  }
+  if (impactorCategoryValue) {
+    const category = summary.impactCategory ?? null;
+    if (category?.name) {
+      const labelParts = [category.name];
+      if (category.rangeLabel) {
+        labelParts.push(category.rangeLabel);
+      }
+      impactorCategoryValue.textContent = labelParts.join(' • ');
+
+      if (category.description) {
+        impactorCategoryValue.title = category.description;
+        impactorCategoryValue.dataset.tooltip = category.description;
+        impactorCategoryValue.classList.add('impactor-results__value--has-tooltip');
+        impactorCategoryValue.setAttribute('tabindex', '0');
+        impactorCategoryValue.setAttribute('role', 'note');
+        impactorCategoryValue.setAttribute(
+          'aria-label',
+          `${category.name} — ${category.description}`
+        );
+      } else {
+        impactorCategoryValue.title = '';
+        delete impactorCategoryValue.dataset.tooltip;
+        impactorCategoryValue.classList.remove('impactor-results__value--has-tooltip');
+        impactorCategoryValue.removeAttribute('tabindex');
+        impactorCategoryValue.removeAttribute('role');
+        impactorCategoryValue.removeAttribute('aria-label');
+      }
+    } else {
+      impactorCategoryValue.textContent = '—';
+      impactorCategoryValue.title = '';
+      delete impactorCategoryValue.dataset.tooltip;
+      impactorCategoryValue.classList.remove('impactor-results__value--has-tooltip');
+      impactorCategoryValue.removeAttribute('tabindex');
+      impactorCategoryValue.removeAttribute('role');
+      impactorCategoryValue.removeAttribute('aria-label');
+    }
   }
   if (impactorImpactLocationValue) {
     const latitudeText = formatLatitude(summary.latitude);
