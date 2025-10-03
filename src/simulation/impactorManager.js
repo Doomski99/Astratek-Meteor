@@ -15,7 +15,8 @@ import { orbitPositionToScene, estimateOrbitalVelocity } from './orbitUtils.js';
 
 const MEGATON_JOULES = 4.184e15;
 const EARTH_RADIUS_KILOMETERS = 6371;
-const DEFAULT_START_DISTANCE_MULTIPLIER = 28;
+const EARTH_RADIUS_SCENE_KILOMETERS = EARTH_RADIUS_SCENE_UNITS * KILOMETERS_PER_SCENE_UNIT;
+const DEFAULT_LEAD_TIME_SECONDS = 7 * 24 * 60 * 60;
 const SOLAR_MU_KM3_PER_S2 = 1.32712440018e11;
 const TWO_PI = Math.PI * 2;
 
@@ -213,7 +214,7 @@ function buildImpactorState({
     massKg,
     diameterMeters,
     velocityKmPerSecond,
-    startDistanceMultiplier = DEFAULT_START_DISTANCE_MULTIPLIER
+    leadTimeSeconds = DEFAULT_LEAD_TIME_SECONDS
   } = config;
 
   if (!Number.isFinite(velocityKmPerSecond) || velocityKmPerSecond <= 0) {
@@ -237,12 +238,11 @@ function buildImpactorState({
   const impactNormalOrbit = sceneToOrbitVector(impactNormalScene, tempOrbitVector).normalize();
 
   const earthRadiusScene = EARTH_RADIUS_SCENE_UNITS;
-  const earthRadiusKm = EARTH_RADIUS_KILOMETERS;
-  const startDistanceKm = Math.max(startDistanceMultiplier, 2) * earthRadiusKm;
 
+  const leadTime = Math.max(Number.isFinite(leadTimeSeconds) ? leadTimeSeconds : 0, 0);
   const framesUntilImpact = Math.max(
-    Math.round((startDistanceKm / Math.max(velocityKmPerSecond, 0.1)) / SECONDS_PER_FRAME),
-    60
+    Math.round((leadTime || DEFAULT_LEAD_TIME_SECONDS) / SECONDS_PER_FRAME),
+    300
   );
   const currentFrame = currentOrbitFrame ?? 0;
   const impactEpochFrame = currentFrame + framesUntilImpact;
@@ -260,7 +260,7 @@ function buildImpactorState({
   });
   const earthVelocityKmPerSecond = (earthVelocityResult.kilometersPerSecond ?? tempVelocity).clone();
 
-  const impactOffsetKm = impactNormalOrbit.clone().multiplyScalar(earthRadiusKm);
+  const impactOffsetKm = impactNormalOrbit.clone().multiplyScalar(EARTH_RADIUS_SCENE_KILOMETERS);
   const impactPositionKm = earthPositionKm.clone().add(impactOffsetKm);
 
   const relativeVelocityKm = impactNormalOrbit.clone().multiplyScalar(-velocityKmPerSecond);
