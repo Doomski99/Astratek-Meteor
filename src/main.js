@@ -202,11 +202,19 @@ function renderImpactorEffects(bands) {
 
     const swatch = document.createElement('span');
     swatch.className = 'impactor-effects__swatch';
-    swatch.style.backgroundColor = `#${(band.color ?? 0xffffff).toString(16).padStart(6, '0')}`;
+    const swatchColor = band.fillColor ?? band.color ?? 0xffffff;
+    swatch.style.backgroundColor = `#${swatchColor.toString(16).padStart(6, '0')}`;
 
     const label = document.createElement('span');
     label.className = 'impactor-effects__label';
     label.textContent = band.label ?? 'Effect';
+
+    if (band.severity) {
+      const severity = document.createElement('span');
+      severity.className = `impactor-effects__severity impactor-effects__severity--${band.severity}`;
+      severity.textContent = band.severity;
+      label.appendChild(severity);
+    }
 
     const value = document.createElement('span');
     value.className = 'impactor-effects__value';

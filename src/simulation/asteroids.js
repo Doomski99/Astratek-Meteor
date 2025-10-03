@@ -173,28 +173,69 @@ function createImpactOverlayMesh(
     const overlayGroup = new THREE.Group();
     overlayGroup.frustumCulled = false;
 
-    bands.forEach((band, index) => {
+    const sortedBands = [...bands].sort((a, b) => (a.radiusKm ?? 0) - (b.radiusKm ?? 0));
+
+    sortedBands.forEach((band, index) => {
       const angularRadiusRad = Math.min(Math.max(band.angularRadiusRad ?? 0, 0), Math.PI);
       if (angularRadiusRad <= 0) {
         return;
       }
 
-      const overlayRadius = earthRadius + Math.max(elevation + index * 0.05, 0);
-      const geometry = new THREE.SphereGeometry(overlayRadius, 64, 32, 0, Math.PI * 2, 0, angularRadiusRad);
+      const overlayRadius = earthRadius + Math.max(elevation + index * 0.12, 0);
+      const renderOrderBase = 100 + (sortedBands.length - index - 1) * 2;
+      const geometry = new THREE.SphereGeometry(
+        overlayRadius,
+        96,
+        48,
+        0,
+        Math.PI * 2,
+        0,
+        angularRadiusRad
+      );
       const material = new THREE.MeshBasicMaterial({
-        color: band.color ?? 0xffffff,
+        color: band.fillColor ?? band.color ?? 0xffffff,
         transparent: true,
-        opacity: band.opacity ?? 0.22,
+        opacity: band.opacity ?? 0.24,
         side: THREE.DoubleSide,
-        depthWrite: false
+        depthWrite: false,
+        depthTest: false,
+        blending: THREE.NormalBlending
       });
 
       const mesh = new THREE.Mesh(geometry, material);
       mesh.position.set(0, 0, 0);
       mesh.frustumCulled = false;
-      mesh.renderOrder = 2 + index;
+      mesh.renderOrder = renderOrderBase;
+      mesh.userData.impactorEffectBand = band.id;
 
       overlayGroup.add(mesh);
+
+      const outlineRadius = overlayRadius * Math.sin(angularRadiusRad);
+      const outlineHeight = overlayRadius * Math.cos(angularRadiusRad) + 0.001;
+      const outlineThickness = Math.max(outlineRadius * 0.045, 0.05);
+      if (outlineRadius > 0.001) {
+        const outlineGeometry = new THREE.RingGeometry(
+          Math.max(outlineRadius - outlineThickness, 0),
+          outlineRadius,
+          128
+        );
+        const outlineMaterial = new THREE.MeshBasicMaterial({
+          color: band.outlineColor ?? band.fillColor ?? 0xffffff,
+          transparent: true,
+          opacity: Math.min((band.opacity ?? 0.24) + 0.2, 0.8),
+          side: THREE.DoubleSide,
+          depthWrite: false,
+          depthTest: false,
+          blending: THREE.AdditiveBlending
+        });
+        const outlineMesh = new THREE.Mesh(outlineGeometry, outlineMaterial);
+        outlineMesh.position.set(0, outlineHeight, 0);
+        outlineMesh.rotation.x = Math.PI / 2;
+        outlineMesh.frustumCulled = false;
+        outlineMesh.renderOrder = renderOrderBase + 1;
+        outlineMesh.userData.impactorEffectBand = `${band.id}-outline`;
+        overlayGroup.add(outlineMesh);
+      }
     });
 
     if (overlayGroup.children.length === 0) {
@@ -388,20 +429,31 @@ function disposeObject(object) {
     return;
   }
 
+  const nodes = [];
+  if (typeof object.traverse === 'function') {
+    object.traverse(child => {
+      nodes.push(child);
+    });
+  } else {
+    nodes.push(object);
+  }
+
+  nodes.forEach(node => {
+    if (node.geometry) {
+      node.geometry.dispose();
+    }
+
+    if (node.material) {
+      if (Array.isArray(node.material)) {
+        node.material.forEach(material => material.dispose());
+      } else {
+        node.material.dispose();
+      }
+    }
+  });
+
   if (object.parent) {
     object.parent.remove(object);
-  }
-
-  if (object.geometry) {
-    object.geometry.dispose();
-  }
-
-  if (object.material) {
-    if (Array.isArray(object.material)) {
-      object.material.forEach(material => material.dispose());
-    } else {
-      object.material.dispose();
-    }
   }
 }
 

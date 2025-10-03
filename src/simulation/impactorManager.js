@@ -56,37 +56,46 @@ function computeEffectBands(yieldMegatons) {
   const bands = [
     {
       id: 'fireball',
-      label: 'Fireball',
+      label: 'Fireball (Total Destruction)',
+      severity: 'critical',
       radiusKm: 0.9 * yieldExponentFourTenths,
-      color: 0xffa726,
-      opacity: 0.35
+      fillColor: 0xff5722,
+      outlineColor: 0xffab91,
+      opacity: 0.45
     },
     {
       id: 'severe-blast',
       label: 'Severe Blast Damage',
+      severity: 'high',
       radiusKm: 2.4 * yieldCubeRoot,
-      color: 0xff7043,
-      opacity: 0.25
+      fillColor: 0xff7043,
+      outlineColor: 0xffccbc,
+      opacity: 0.32
     },
     {
       id: 'moderate-blast',
       label: 'Moderate Blast Damage',
+      severity: 'elevated',
       radiusKm: 4.1 * yieldCubeRoot,
-      color: 0xf4511e,
-      opacity: 0.2
+      fillColor: 0xff9800,
+      outlineColor: 0xffe0b2,
+      opacity: 0.26
     },
     {
       id: 'thermal',
       label: 'Thermal Radiation',
+      severity: 'area',
       radiusKm: 7.2 * yieldExponentFourTenths,
-      color: 0xffcc80,
-      opacity: 0.18
+      fillColor: 0xffe082,
+      outlineColor: 0xfff3e0,
+      opacity: 0.2
     }
   ];
 
   return bands
     .map(band => ({
       ...band,
+      color: band.fillColor,
       angularRadiusRad: Math.min((band.radiusKm / EARTH_RADIUS_KILOMETERS) || 0, Math.PI)
     }))
     .filter(band => band.radiusKm > 0.01 && band.angularRadiusRad > 0);

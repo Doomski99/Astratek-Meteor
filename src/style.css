@@ -498,6 +498,42 @@ p {
 .impactor-effects__label {
     font-size: 12px;
     color: #f4f5ff;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.impactor-effects__severity {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 6px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    background: rgba(255, 255, 255, 0.12);
+    color: #0b1628;
+}
+
+.impactor-effects__severity--critical {
+    background: rgba(255, 87, 34, 0.85);
+    color: #1c0400;
+}
+
+.impactor-effects__severity--high {
+    background: rgba(255, 112, 67, 0.75);
+    color: #220400;
+}
+
+.impactor-effects__severity--elevated {
+    background: rgba(255, 152, 0, 0.75);
+    color: #231300;
+}
+
+.impactor-effects__severity--area {
+    background: rgba(255, 224, 130, 0.85);
+    color: #2a2000;
 }
 
 .impactor-effects__value {
