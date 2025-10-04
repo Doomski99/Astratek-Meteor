@@ -23,7 +23,11 @@ const TWO_PI = Math.PI * 2;
 
 const tempOrbitVector = new THREE.Vector3();
 const tempVelocity = new THREE.Vector3();
+const tempSceneVector = new THREE.Vector3();
+const tempQuaternion = new THREE.Quaternion();
+const tempQuaternion2 = new THREE.Quaternion();
 const kHat = new THREE.Vector3(0, 0, 1);
+const yAxis = new THREE.Vector3(0, 1, 0);
 
 function ensureOrthogonalBasis(normal) {
   const safeNormal = normal.clone().normalize();
@@ -76,6 +80,16 @@ function logVelocityDebug(label, vectorKmPerSecond) {
     .toArray()
     .map(component => Number(component.toFixed(3)));
   console.log(`[Impactor] ${label}:`, formatted, 'km/s');
+}
+
+function formatVector(vector, fractionDigits = 3) {
+  if (!vector?.toArray) {
+    return [0, 0, 0];
+  }
+
+  return vector
+    .toArray()
+    .map(component => Number(component.toFixed(fractionDigits)));
 }
 
 const BASE_EFFECT_BANDS = [
@@ -318,13 +332,15 @@ function buildImpactorState({
   const latRad = THREE.MathUtils.degToRad(latitude);
   const lonRad = THREE.MathUtils.degToRad(longitude);
 
+  if (earthMesh) {
+    earthMesh.updateWorldMatrix(true, false);
+  }
+
   const impactNormalScene = new THREE.Vector3(
     Math.cos(latRad) * Math.cos(lonRad),
     Math.sin(latRad),
     Math.cos(latRad) * Math.sin(lonRad)
   ).normalize();
-
-  const impactNormalOrbit = sceneToOrbitVector(impactNormalScene, tempOrbitVector).normalize();
 
   const earthRadiusScene = EARTH_RADIUS_SCENE_UNITS;
 
@@ -336,6 +352,26 @@ function buildImpactorState({
   const currentFrame = currentOrbitFrame ?? 0;
   const impactEpochFrame = currentFrame + framesUntilImpact;
 
+  const impactNormalSceneWorld = impactNormalScene.clone();
+  if (earthMesh) {
+    earthMesh.getWorldQuaternion(tempQuaternion);
+    const spinRate = Number.isFinite(earthMesh.userData?.spinRate)
+      ? earthMesh.userData.spinRate
+      : 0;
+    const additionalSpin = spinRate * framesUntilImpact;
+    if (Math.abs(additionalSpin) > 1e-6) {
+      tempQuaternion2.setFromAxisAngle(yAxis, additionalSpin);
+      tempQuaternion.multiply(tempQuaternion2);
+    }
+    impactNormalSceneWorld.applyQuaternion(tempQuaternion);
+  }
+  impactNormalSceneWorld.normalize();
+
+  const impactNormalOrbit = sceneToOrbitVector(
+    impactNormalSceneWorld,
+    tempOrbitVector
+  ).normalize();
+
   const earthStateAtImpact = propagateKepler(earthOrbitElements, impactEpochFrame);
   const earthPositionOrbit = tempOrbitVector.clone().set(
     earthStateAtImpact.position.x ?? 0,
@@ -343,6 +379,10 @@ function buildImpactorState({
     earthStateAtImpact.position.z ?? 0
   );
   const earthPositionKm = earthPositionOrbit.clone().multiplyScalar(KILOMETERS_PER_SCENE_UNIT);
+  const earthScenePositionAtImpact = orbitPositionToScene(
+    earthStateAtImpact.position,
+    tempSceneVector.clone()
+  );
 
   const earthVelocityResult = estimateOrbitalVelocity(earthOrbitElements, impactEpochFrame, {
     kilometersPerSecondTarget: tempVelocity
@@ -448,6 +488,27 @@ function buildImpactorState({
     propagateKepler(keplerElements, impactEpochFrame).position,
     new THREE.Vector3()
   );
+
+  const overlaySeedWorldPoint = impactNormalScene.clone().multiplyScalar(earthRadiusScene);
+  if (earthMesh) {
+    earthMesh.localToWorld(overlaySeedWorldPoint);
+  }
+
+  const overlayImpactSceneAtEpoch = earthScenePositionAtImpact
+    .clone()
+    .add(impactNormalSceneWorld.clone().multiplyScalar(earthRadiusScene));
+  const overlayDeltaAtImpact = overlayImpactSceneAtEpoch.clone().sub(impactScenePosition);
+
+  console.log('[Impactor] Overlay impact point (seed frame):', formatVector(overlaySeedWorldPoint));
+  console.log(
+    '[Impactor] Overlay impact point (impact epoch):',
+    formatVector(overlayImpactSceneAtEpoch)
+  );
+  console.log(
+    '[Impactor] Impactor scene position (impact epoch):',
+    formatVector(impactScenePosition)
+  );
+  console.log('[Impactor] Overlay/impactor delta at impact epoch:', formatVector(overlayDeltaAtImpact));
 
   return {
     mesh,

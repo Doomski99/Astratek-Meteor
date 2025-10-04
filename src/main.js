@@ -1389,6 +1389,11 @@ function registerSpinBinding(object, ratePerFrame) {
   if (!object) {
     return;
   }
+  if (!object.userData) {
+    object.userData = {};
+  }
+  object.userData.spinRate = ratePerFrame;
+  object.userData.spinBase = object.rotation.y;
   spinBindings.push({ object, rate: ratePerFrame, base: object.rotation.y });
 }
 
