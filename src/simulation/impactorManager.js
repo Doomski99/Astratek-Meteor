@@ -19,11 +19,235 @@ const EARTH_RADIUS_KILOMETERS = 6371;
 const EARTH_RADIUS_SCENE_KILOMETERS = EARTH_RADIUS_SCENE_UNITS * KILOMETERS_PER_SCENE_UNIT;
 const DEFAULT_LEAD_TIME_SECONDS = 7 * 24 * 60 * 60;
 const SOLAR_MU_KM3_PER_S2 = 1.32712440018e11;
+const EARTH_MU_KM3_PER_S2 = 398600.4418;
+const SEA_LEVEL_AIR_DENSITY_KG_PER_M3 = 1.225;
+const ATMOSPHERIC_SCALE_HEIGHT_KM = 8.5;
+const ATMOSPHERIC_ENTRY_ALTITUDE_KM = 120;
+const DRAG_COEFFICIENT = 0.75;
 const TWO_PI = Math.PI * 2;
 
 const tempOrbitVector = new THREE.Vector3();
 const tempVelocity = new THREE.Vector3();
+const tempSceneVector = new THREE.Vector3();
+const tempQuaternion = new THREE.Quaternion();
+const tempQuaternion2 = new THREE.Quaternion();
+const tempOrbitVector2 = new THREE.Vector3();
 const kHat = new THREE.Vector3(0, 0, 1);
+const yAxis = new THREE.Vector3(0, 1, 0);
+const tempVectorA = new THREE.Vector3();
+const tempVectorB = new THREE.Vector3();
+const tempVectorC = new THREE.Vector3();
+const tempEntryVelocity = new THREE.Vector3();
+const tempEntryNormal = new THREE.Vector3();
+
+function ensureOrthogonalBasis(normal) {
+  const safeNormal = normal.clone().normalize();
+  let seed = new THREE.Vector3(
+    THREE.MathUtils.randFloatSpread(2),
+    THREE.MathUtils.randFloatSpread(2),
+    THREE.MathUtils.randFloatSpread(2)
+  );
+
+  if (seed.lengthSq() < 1e-4 || Math.abs(seed.dot(safeNormal)) > 0.95) {
+    seed.set(safeNormal.y || 1, safeNormal.z || 0.5, safeNormal.x || 0.25);
+  }
+
+  const tangent1 = seed.clone().cross(safeNormal).normalize();
+  if (tangent1.lengthSq() < 1e-8) {
+    tangent1.set(-safeNormal.z, safeNormal.x, safeNormal.y).normalize();
+  }
+
+  const tangent2 = safeNormal.clone().cross(tangent1).normalize();
+  return { tangent1, tangent2, normal: safeNormal };
+}
+
+function createApproachVelocity(impactNormal, speedKmPerSecond) {
+  const { tangent1, tangent2, normal } = ensureOrthogonalBasis(impactNormal);
+
+  const tangentialFraction = THREE.MathUtils.randFloat(0.15, 0.75);
+  const tangentialAngle = THREE.MathUtils.randFloat(0, TWO_PI);
+  const radialFraction = Math.sqrt(Math.max(1 - tangentialFraction * tangentialFraction, 0.05));
+
+  const tangentialComponent = tangent1
+    .clone()
+    .multiplyScalar(Math.cos(tangentialAngle))
+    .add(tangent2.clone().multiplyScalar(Math.sin(tangentialAngle)));
+
+  const approachDirection = normal
+    .clone()
+    .multiplyScalar(-radialFraction)
+    .add(tangentialComponent.multiplyScalar(tangentialFraction))
+    .normalize();
+
+  return approachDirection.multiplyScalar(speedKmPerSecond);
+}
+
+function computeAtmosphericDensityKgPerM3(altitudeKm) {
+  if (!Number.isFinite(altitudeKm) || altitudeKm >= 200) {
+    return 0;
+  }
+
+  if (altitudeKm <= 0) {
+    return SEA_LEVEL_AIR_DENSITY_KG_PER_M3;
+  }
+
+  return SEA_LEVEL_AIR_DENSITY_KG_PER_M3 * Math.exp(-altitudeKm / ATMOSPHERIC_SCALE_HEIGHT_KM);
+}
+
+function sampleVelocitiesAtFrame(impactorElements, earthElements, frame) {
+  const impactorVelocityTarget = tempVectorA.set(0, 0, 0);
+  const earthVelocityTarget = tempVectorB.set(0, 0, 0);
+
+  const impactorResult = estimateOrbitalVelocity(impactorElements, frame, {
+    kilometersPerSecondTarget: impactorVelocityTarget
+  });
+  const earthResult = estimateOrbitalVelocity(earthElements, frame, {
+    kilometersPerSecondTarget: earthVelocityTarget
+  });
+
+  const impactorVelocity = (impactorResult.kilometersPerSecond ?? impactorVelocityTarget).clone();
+  const earthVelocity = (earthResult.kilometersPerSecond ?? earthVelocityTarget).clone();
+  const relativeVelocity = impactorVelocity.clone().sub(earthVelocity);
+
+  return { impactorVelocity, earthVelocity, relativeVelocity };
+}
+
+function logVelocityDebug(label, vectorKmPerSecond) {
+  if (!vectorKmPerSecond) {
+    return;
+  }
+
+  const formatted = vectorKmPerSecond
+    .toArray()
+    .map(component => Number(component.toFixed(3)));
+  console.log(`[Impactor] ${label}:`, formatted, 'km/s');
+}
+
+function formatVector(vector, fractionDigits = 3) {
+  if (!vector?.toArray) {
+    return [0, 0, 0];
+  }
+
+  return vector
+    .toArray()
+    .map(component => Number(component.toFixed(fractionDigits)));
+}
+
+function sampleSurfaceSeparation(earthElements, impactorElements, frame) {
+  const earthState = propagateKepler(earthElements, frame);
+  const impactorState = propagateKepler(impactorElements, frame);
+
+  const earthVector = new THREE.Vector3(
+    earthState.position.x ?? 0,
+    earthState.position.y ?? 0,
+    earthState.position.z ?? 0
+  );
+
+  const impactorVector = new THREE.Vector3(
+    impactorState.position.x ?? 0,
+    impactorState.position.y ?? 0,
+    impactorState.position.z ?? 0
+  );
+
+  const relativeVector = impactorVector.clone().sub(earthVector);
+  const separationSceneUnits = relativeVector.length();
+
+  return {
+    frame,
+    earthVector,
+    impactorVector,
+    relativeVector,
+    separationSceneUnits,
+    surfaceDeltaSceneUnits: separationSceneUnits - EARTH_RADIUS_SCENE_UNITS
+  };
+}
+
+function estimateImpactEpochFrame({
+  earthElements,
+  impactorElements,
+  initialFrame,
+  minFrame = 0,
+  toleranceSceneUnits = 1e-4,
+  searchRadiusFrames
+}) {
+  if (!earthElements || !impactorElements) {
+    return null;
+  }
+
+  const safeInitialFrame = Number.isFinite(initialFrame) ? initialFrame : 0;
+  const radius = Math.max(
+    Number.isFinite(searchRadiusFrames) ? searchRadiusFrames : Math.abs(safeInitialFrame - minFrame) * 0.5,
+    240
+  );
+
+  const startFrame = Math.max(minFrame, safeInitialFrame - radius);
+  const endFrame = safeInitialFrame + radius;
+  const step = Math.max(Math.floor(radius / 12), 20);
+
+  const initialSample = sampleSurfaceSeparation(earthElements, impactorElements, safeInitialFrame);
+  let bestSample = initialSample;
+
+  let previousSample = sampleSurfaceSeparation(earthElements, impactorElements, startFrame);
+  if (Math.abs(previousSample.surfaceDeltaSceneUnits) < Math.abs(bestSample.surfaceDeltaSceneUnits)) {
+    bestSample = previousSample;
+  }
+
+  let lowerSample = null;
+  let upperSample = null;
+
+  for (let frame = startFrame + step; frame <= endFrame; frame += step) {
+    const sample = sampleSurfaceSeparation(earthElements, impactorElements, frame);
+
+    if (Math.abs(sample.surfaceDeltaSceneUnits) < Math.abs(bestSample.surfaceDeltaSceneUnits)) {
+      bestSample = sample;
+    }
+
+    const signProduct = previousSample.surfaceDeltaSceneUnits * sample.surfaceDeltaSceneUnits;
+    if (signProduct <= 0) {
+      lowerSample = previousSample;
+      upperSample = sample;
+      break;
+    }
+
+    previousSample = sample;
+  }
+
+  if (!lowerSample || !upperSample) {
+    return {
+      frame: bestSample.frame,
+      surfaceDeltaKm: bestSample.surfaceDeltaSceneUnits * KILOMETERS_PER_SCENE_UNIT
+    };
+  }
+
+  let low = lowerSample;
+  let high = upperSample;
+  for (let iteration = 0; iteration < 24; iteration += 1) {
+    const midFrame = (low.frame + high.frame) / 2;
+    const midSample = sampleSurfaceSeparation(earthElements, impactorElements, midFrame);
+
+    if (Math.abs(midSample.surfaceDeltaSceneUnits) < Math.abs(bestSample.surfaceDeltaSceneUnits)) {
+      bestSample = midSample;
+    }
+
+    if (Math.abs(midSample.surfaceDeltaSceneUnits) <= toleranceSceneUnits) {
+      bestSample = midSample;
+      break;
+    }
+
+    const lowSign = low.surfaceDeltaSceneUnits;
+    const midSign = midSample.surfaceDeltaSceneUnits;
+    if (lowSign * midSign <= 0) {
+      high = midSample;
+    } else {
+      low = midSample;
+    }
+  }
+
+  return {
+    frame: bestSample.frame,
+    surfaceDeltaKm: bestSample.surfaceDeltaSceneUnits * KILOMETERS_PER_SCENE_UNIT
+  };
+}
 
 const BASE_EFFECT_BANDS = [
   {
@@ -86,10 +310,52 @@ function sceneToOrbitVector(sceneVector, target = new THREE.Vector3()) {
   return target;
 }
 
-function computeYieldMegatons(massKg, velocityKmPerSecond) {
-  const speedMetersPerSecond = velocityKmPerSecond * 1000;
-  const energyJoules = 0.5 * massKg * speedMetersPerSecond * speedMetersPerSecond;
-  return energyJoules / MEGATON_JOULES;
+function computeEntryAngleSin(relativeVelocity, surfaceNormal) {
+  if (
+    !(relativeVelocity instanceof THREE.Vector3) ||
+    !(surfaceNormal instanceof THREE.Vector3)
+  ) {
+    return 0;
+  }
+
+  tempEntryVelocity.copy(relativeVelocity);
+  const speed = tempEntryVelocity.length();
+  if (!Number.isFinite(speed) || speed <= 0) {
+    return 0;
+  }
+
+  tempEntryNormal.copy(surfaceNormal);
+  const normalLength = tempEntryNormal.length();
+  if (!Number.isFinite(normalLength) || normalLength <= 0) {
+    return 0;
+  }
+
+  const downwardNormal = tempEntryNormal.multiplyScalar(-1 / normalLength);
+  tempEntryVelocity.multiplyScalar(1 / speed);
+  const cosine = THREE.MathUtils.clamp(tempEntryVelocity.dot(downwardNormal), 0, 1);
+
+  return cosine;
+}
+
+function computeYieldMegatons(
+  massKg,
+  velocityKmPerSecond,
+  couplingEfficiency = 1,
+  entryAngleSin = 1
+) {
+  const safeMassKg = Number.isFinite(massKg) && massKg > 0 ? massKg : 0;
+  const safeVelocityKmPerSecond =
+    Number.isFinite(velocityKmPerSecond) && velocityKmPerSecond > 0
+      ? velocityKmPerSecond
+      : 0;
+  const clampedCoupling = Math.min(Math.max(couplingEfficiency ?? 1, 0), 1);
+  const clampedEntryAngleSin = Math.min(Math.max(entryAngleSin ?? 0, 0), 1);
+
+  const speedMetersPerSecond = safeVelocityKmPerSecond * 1000;
+  const kineticEnergyJoules = 0.5 * safeMassKg * speedMetersPerSecond * speedMetersPerSecond;
+  const coupledEnergyJoules = kineticEnergyJoules * clampedCoupling * clampedEntryAngleSin;
+
+  return coupledEnergyJoules / MEGATON_JOULES;
 }
 
 function computeEffectBands(yieldMegatons) {
@@ -250,20 +516,31 @@ function buildImpactorState({
     massKg,
     diameterMeters,
     velocityKmPerSecond,
-    leadTimeSeconds = DEFAULT_LEAD_TIME_SECONDS
+    leadTimeSeconds = DEFAULT_LEAD_TIME_SECONDS,
+    couplingEfficiency,
+    densityKgPerM3,
+    asteroidType
   } = config;
 
   if (!Number.isFinite(velocityKmPerSecond) || velocityKmPerSecond <= 0) {
     throw new Error('Velocity must be a positive number.');
   }
 
-  const yieldMegatons = computeYieldMegatons(massKg, velocityKmPerSecond);
-  const { category: impactCategory, bands: effectBands } = computeEffectBands(yieldMegatons);
+  const safeCouplingEfficiency = Number.isFinite(couplingEfficiency)
+    ? Math.min(Math.max(couplingEfficiency, 0), 1)
+    : 1;
+
+  const radiusMeters = Math.max(Number.isFinite(diameterMeters) ? diameterMeters / 2 : 0, 0);
+  const crossSectionAreaM2 = Math.PI * radiusMeters * radiusMeters;
 
   const latitude = THREE.MathUtils.randFloatSpread(180);
   const longitude = THREE.MathUtils.randFloatSpread(360);
   const latRad = THREE.MathUtils.degToRad(latitude);
   const lonRad = THREE.MathUtils.degToRad(longitude);
+
+  if (earthMesh) {
+    earthMesh.updateWorldMatrix(true, false);
+  }
 
   const impactNormalScene = new THREE.Vector3(
     Math.cos(latRad) * Math.cos(lonRad),
@@ -271,48 +548,161 @@ function buildImpactorState({
     Math.cos(latRad) * Math.sin(lonRad)
   ).normalize();
 
-  const impactNormalOrbit = sceneToOrbitVector(impactNormalScene, tempOrbitVector).normalize();
-
   const earthRadiusScene = EARTH_RADIUS_SCENE_UNITS;
 
   const leadTime = Math.max(Number.isFinite(leadTimeSeconds) ? leadTimeSeconds : 0, 0);
-  const framesUntilImpact = Math.max(
+  let framesUntilImpact = Math.max(
     Math.round((leadTime || DEFAULT_LEAD_TIME_SECONDS) / SECONDS_PER_FRAME),
     300
   );
   const currentFrame = currentOrbitFrame ?? 0;
-  const impactEpochFrame = currentFrame + framesUntilImpact;
+  let impactEpochFrame = currentFrame + framesUntilImpact;
 
-  const earthStateAtImpact = propagateKepler(earthOrbitElements, impactEpochFrame);
-  const earthPositionOrbit = tempOrbitVector.clone().set(
+  const impactNormalSceneWorld = impactNormalScene.clone();
+  if (earthMesh) {
+    earthMesh.getWorldQuaternion(tempQuaternion);
+    const spinRate = Number.isFinite(earthMesh.userData?.spinRate)
+      ? earthMesh.userData.spinRate
+      : 0;
+    const additionalSpin = spinRate * framesUntilImpact;
+    if (Math.abs(additionalSpin) > 1e-6) {
+      tempQuaternion2.setFromAxisAngle(yAxis, additionalSpin);
+      tempQuaternion.multiply(tempQuaternion2);
+    }
+    impactNormalSceneWorld.applyQuaternion(tempQuaternion);
+  }
+  impactNormalSceneWorld.normalize();
+
+  const impactNormalOrbit = sceneToOrbitVector(
+    impactNormalSceneWorld,
+    tempOrbitVector
+  ).normalize();
+
+  let earthStateAtImpact = propagateKepler(earthOrbitElements, impactEpochFrame);
+  let earthPositionOrbit = tempOrbitVector.clone().set(
     earthStateAtImpact.position.x ?? 0,
     earthStateAtImpact.position.y ?? 0,
     earthStateAtImpact.position.z ?? 0
   );
-  const earthPositionKm = earthPositionOrbit.clone().multiplyScalar(KILOMETERS_PER_SCENE_UNIT);
+  let earthPositionKm = earthPositionOrbit.clone().multiplyScalar(KILOMETERS_PER_SCENE_UNIT);
+  let earthScenePositionAtImpact = orbitPositionToScene(
+    earthStateAtImpact.position,
+    tempSceneVector.clone()
+  );
 
-  const earthVelocityResult = estimateOrbitalVelocity(earthOrbitElements, impactEpochFrame, {
+  const earthVelocitySeedResult = estimateOrbitalVelocity(earthOrbitElements, impactEpochFrame, {
     kilometersPerSecondTarget: tempVelocity
   });
-  const earthVelocityKmPerSecond = (earthVelocityResult.kilometersPerSecond ?? tempVelocity).clone();
+  const earthVelocitySeedKmPerSecond =
+    (earthVelocitySeedResult.kilometersPerSecond ?? tempVelocity).clone();
 
   const impactOffsetKm = impactNormalOrbit.clone().multiplyScalar(EARTH_RADIUS_SCENE_KILOMETERS);
   const impactPositionKm = earthPositionKm.clone().add(impactOffsetKm);
 
-  const relativeVelocityKm = impactNormalOrbit.clone().multiplyScalar(-velocityKmPerSecond);
+  let relativeVelocityKm = createApproachVelocity(impactNormalOrbit, velocityKmPerSecond);
 
   const orbitRadiusKm = Math.max(earthPositionKm.length(), 1);
   const escapeSpeed = Math.sqrt((2 * SOLAR_MU_KM3_PER_S2) / orbitRadiusKm) * 0.98;
-  const earthSpeed = earthVelocityKmPerSecond.length();
+  const earthSpeed = earthVelocitySeedKmPerSecond.length();
   const availableAdditionalSpeed = Math.max(escapeSpeed - earthSpeed, 1);
   const relativeSpeed = relativeVelocityKm.length();
   if (relativeSpeed > availableAdditionalSpeed) {
     relativeVelocityKm.multiplyScalar(availableAdditionalSpeed / relativeSpeed);
   }
 
-  const impactVelocityKm = earthVelocityKmPerSecond.clone().add(relativeVelocityKm);
+  const impactVelocityKm = earthVelocitySeedKmPerSecond.clone().add(relativeVelocityKm);
 
   const keplerElements = createKeplerFromState(impactPositionKm, impactVelocityKm, impactEpochFrame);
+
+  const impactEpochEstimate = estimateImpactEpochFrame({
+    earthElements: earthOrbitElements,
+    impactorElements: keplerElements,
+    initialFrame: impactEpochFrame,
+    minFrame: currentFrame
+  });
+
+  if (impactEpochEstimate && Number.isFinite(impactEpochEstimate.frame)) {
+    impactEpochFrame = impactEpochEstimate.frame;
+    framesUntilImpact = Math.max(Math.round(impactEpochFrame - currentFrame), 0);
+    earthStateAtImpact = propagateKepler(earthOrbitElements, impactEpochFrame);
+    earthPositionOrbit = tempOrbitVector2.set(
+      earthStateAtImpact.position.x ?? 0,
+      earthStateAtImpact.position.y ?? 0,
+      earthStateAtImpact.position.z ?? 0
+    );
+    earthPositionKm = earthPositionOrbit.clone().multiplyScalar(KILOMETERS_PER_SCENE_UNIT);
+    earthScenePositionAtImpact = orbitPositionToScene(
+      earthStateAtImpact.position,
+      tempSceneVector.clone()
+    );
+
+    console.log(
+      '[Impactor] Refined impact epoch frame:',
+      Number(impactEpochFrame.toFixed(3)),
+      'surface delta (km):',
+      Number((impactEpochEstimate.surfaceDeltaKm ?? 0).toFixed(4))
+    );
+  }
+
+  const earthVelocityImpactResult = estimateOrbitalVelocity(earthOrbitElements, impactEpochFrame, {
+    kilometersPerSecondTarget: new THREE.Vector3()
+  });
+  const earthVelocityKmPerSecond = earthVelocityImpactResult.kilometersPerSecond ?? new THREE.Vector3();
+
+  const impactorVelocityImpactResult = estimateOrbitalVelocity(keplerElements, impactEpochFrame, {
+    kilometersPerSecondTarget: new THREE.Vector3()
+  });
+  const impactorVelocityKmPerSecond =
+    impactorVelocityImpactResult.kilometersPerSecond ?? new THREE.Vector3();
+
+  const relativeVelocityAtImpactKmPerSecond = impactorVelocityKmPerSecond
+    .clone()
+    .sub(earthVelocityKmPerSecond);
+
+  const entryAngleSin = computeEntryAngleSin(
+    relativeVelocityAtImpactKmPerSecond,
+    impactNormalOrbit
+  );
+  if (Number.isFinite(entryAngleSin)) {
+    const clamped = Math.min(Math.max(entryAngleSin, 0), 1);
+    const entryAngleDeg = THREE.MathUtils.radToDeg(Math.asin(clamped));
+    console.log(
+      '[Impactor] Entry angle vs surface:',
+      Number(entryAngleDeg.toFixed(2)),
+      'deg (sinθ =',
+      Number(entryAngleSin.toFixed(3)),
+      ')'
+    );
+  }
+
+  const impactSpeedKmPerSecond = relativeVelocityAtImpactKmPerSecond.length();
+  const yieldMegatons = computeYieldMegatons(
+    massKg,
+    impactSpeedKmPerSecond,
+    safeCouplingEfficiency,
+    entryAngleSin
+  );
+  const { category: impactCategory, bands: effectBands } = computeEffectBands(yieldMegatons);
+
+  logVelocityDebug('Earth heliocentric velocity @ impact', earthVelocityKmPerSecond);
+  logVelocityDebug('Impactor heliocentric velocity @ impact', impactorVelocityKmPerSecond);
+  logVelocityDebug(
+    'Impactor relative velocity vs Earth before atmosphere',
+    relativeVelocityAtImpactKmPerSecond
+  );
+
+  console.log('[Impactor] Generated Keplerian elements:', {
+    semiMajorAxisKm: Number((keplerElements.semiMajorAxis * KILOMETERS_PER_SCENE_UNIT).toFixed(2)),
+    eccentricity: Number(keplerElements.eccentricity.toFixed(4)),
+    inclinationDeg: Number(THREE.MathUtils.radToDeg(keplerElements.inclination).toFixed(3)),
+    longitudeOfAscendingNodeDeg: Number(
+      THREE.MathUtils.radToDeg(keplerElements.longitudeOfAscendingNode).toFixed(3)
+    ),
+    argumentOfPeriapsisDeg: Number(
+      THREE.MathUtils.radToDeg(keplerElements.argumentOfPeriapsis).toFixed(3)
+    ),
+    meanAnomalyDeg: Number(THREE.MathUtils.radToDeg(keplerElements.meanAnomalyAtEpoch).toFixed(3))
+  });
 
   const { position: currentOrbitPosition } = propagateKepler(keplerElements, currentFrame);
   const startScenePosition = orbitPositionToScene(currentOrbitPosition, new THREE.Vector3());
@@ -337,23 +727,6 @@ function buildImpactorState({
   mesh.userData.isImpactor = true;
   mesh.position.copy(startScenePosition);
   scene.add(mesh);
-
-  const overlayEntry = {
-    data: { tntYieldMt: yieldMegatons },
-    earthOrbitIntersection: {
-      intersects: true,
-      impactNormal: impactNormalScene.clone(),
-      impactPoint: impactNormalScene.clone().multiplyScalar(earthRadiusScene)
-    }
-  };
-
-  const overlay = createImpactOverlayMesh(overlayEntry, earthRadiusScene, {
-    bands: effectBands
-  });
-
-  if (overlay) {
-    (earthMesh ?? scene).add(overlay);
-  }
 
   let trajectoryLine = null;
   const trajectoryPoints = [];
@@ -380,14 +753,41 @@ function buildImpactorState({
     new THREE.Vector3()
   );
 
+  const overlaySeedWorldPoint = impactNormalScene.clone().multiplyScalar(earthRadiusScene);
+  if (earthMesh) {
+    earthMesh.localToWorld(overlaySeedWorldPoint);
+  }
+
+  const overlayImpactSceneAtEpoch = earthScenePositionAtImpact
+    .clone()
+    .add(impactNormalSceneWorld.clone().multiplyScalar(earthRadiusScene));
+  const overlayDeltaAtImpact = overlayImpactSceneAtEpoch.clone().sub(impactScenePosition);
+
+  console.log('[Impactor] Overlay impact point (seed frame):', formatVector(overlaySeedWorldPoint));
+  console.log(
+    '[Impactor] Overlay impact point (impact epoch):',
+    formatVector(overlayImpactSceneAtEpoch)
+  );
+  console.log(
+    '[Impactor] Impactor scene position (impact epoch):',
+    formatVector(impactScenePosition)
+  );
+  console.log('[Impactor] Overlay/impactor delta at impact epoch:', formatVector(overlayDeltaAtImpact));
+
+  const earthVelocityAtImpactClone = earthVelocityKmPerSecond.clone();
+  const impactorVelocityAtImpactClone = impactorVelocityKmPerSecond.clone();
+  const relativeVelocityAtImpactClone = relativeVelocityAtImpactKmPerSecond.clone();
+  const timeToImpactSeconds = Math.max((impactEpochFrame - currentFrame) * SECONDS_PER_FRAME, 0);
+
   return {
     mesh,
-    overlay,
+    overlay: null,
     trajectoryLine,
     effectBands,
     yieldMegatons,
     impactCategory,
     impactNormalScene,
+    impactNormalOrbit: impactNormalOrbit.clone(),
     keplerElements,
     impactEpochFrame,
     name: name || 'Impactor',
@@ -396,10 +796,28 @@ function buildImpactorState({
     velocityKmPerSecond,
     latitude,
     longitude,
-    timeToImpactSeconds: framesUntilImpact * SECONDS_PER_FRAME,
+    timeToImpactSeconds,
     impacted: false,
     previousOrbitFrame: currentFrame,
-    impactScenePosition
+    impactScenePosition,
+    earthVelocityKmPerSecondAtImpact: earthVelocityAtImpactClone,
+    impactorVelocityKmPerSecondAtImpact: impactorVelocityAtImpactClone,
+    relativeVelocityKmPerSecond: relativeVelocityAtImpactClone,
+    impactVelocityKmPerSecond: impactSpeedKmPerSecond,
+    entryAngleSin,
+    couplingEfficiency: safeCouplingEfficiency,
+    densityKgPerM3: Number.isFinite(densityKgPerM3) && densityKgPerM3 > 0 ? densityKgPerM3 : null,
+    asteroidType: asteroidType ?? null,
+    dragCoefficient: DRAG_COEFFICIENT,
+    crossSectionAreaM2,
+    dragStartAltitudeKm: ATMOSPHERIC_ENTRY_ALTITUDE_KM,
+    dragActive: false,
+    dragRelativePositionKm: null,
+    dragRelativeVelocityKmPerSecond: null,
+    atmosphericEntryFrame: null,
+    elapsedSeconds: 0,
+    initialTimeToImpactSeconds: timeToImpactSeconds,
+    earthRadiusScene
   };
 }
 
@@ -442,6 +860,90 @@ function createImpactorManager({ scene, earthMesh, earthOrbitElements }) {
     impactCategory: null
   };
 
+  function clearSnapshot() {
+    snapshot.remainingSeconds = null;
+    snapshot.impacted = false;
+    snapshot.latitude = null;
+    snapshot.longitude = null;
+    snapshot.yieldMegatons = null;
+    snapshot.effectBands = [];
+    snapshot.name = null;
+    snapshot.impactCategory = null;
+  }
+
+  function rebuildOverlay(state) {
+    if (!state) {
+      return;
+    }
+
+    const overlayParent = earthMesh ?? scene;
+
+    if (state.overlay) {
+      if (state.overlay.parent) {
+        state.overlay.parent.remove(state.overlay);
+      }
+      disposeObject(state.overlay);
+      state.overlay = null;
+    }
+
+    const impactNormal = state.impactNormalScene?.clone?.();
+    if (!(impactNormal instanceof THREE.Vector3)) {
+      return;
+    }
+
+    const earthRadiusScene = Number.isFinite(state.earthRadiusScene)
+      ? state.earthRadiusScene
+      : EARTH_RADIUS_SCENE_UNITS;
+
+    const overlayEntry = {
+      data: { tntYieldMt: state.yieldMegatons ?? 0 },
+      earthOrbitIntersection: {
+        intersects: true,
+        impactNormal,
+        impactPoint: impactNormal.clone().multiplyScalar(earthRadiusScene)
+      }
+    };
+
+    const overlay = createImpactOverlayMesh(overlayEntry, earthRadiusScene, {
+      bands: state.effectBands
+    });
+
+    if (overlay) {
+      overlayParent.add(overlay);
+      state.overlay = overlay;
+    }
+  }
+
+  function applyImpactOutputs(state, { yieldMegatons, impactCategory, effectBands }) {
+    if (!state) {
+      return;
+    }
+
+    const safeYield = Number.isFinite(yieldMegatons) ? yieldMegatons : 0;
+    const safeBands = Array.isArray(effectBands) ? effectBands : [];
+
+    state.yieldMegatons = safeYield;
+    state.effectBands = safeBands;
+    state.impactCategory = impactCategory ?? null;
+
+    snapshot.yieldMegatons = safeYield;
+    snapshot.effectBands = safeBands.map(band => ({ ...band }));
+    snapshot.name = state.name;
+
+    if (state.impactCategory) {
+      snapshot.impactCategory = {
+        id: state.impactCategory.id,
+        name: state.impactCategory.name,
+        rangeLabel: state.impactCategory.rangeLabel,
+        description: state.impactCategory.description
+      };
+    } else {
+      snapshot.impactCategory = null;
+    }
+
+    rebuildOverlay(state);
+  }
+
   function getSnapshot() {
     if (!currentState) {
       return null;
@@ -452,28 +954,24 @@ function createImpactorManager({ scene, earthMesh, earthOrbitElements }) {
       latitude: snapshot.latitude,
       longitude: snapshot.longitude,
       yieldMegatons: snapshot.yieldMegatons,
-      effectBands: snapshot.effectBands,
+      effectBands: snapshot.effectBands.map(band => ({ ...band })),
       name: snapshot.name,
       impactCategory: snapshot.impactCategory
+        ? { ...snapshot.impactCategory }
+        : null
     };
   }
 
   function reset() {
-    if (!currentState) {
-      return false;
+    const hadImpactor = !!currentState;
+
+    if (currentState) {
+      disposeImpactor(currentState, { scene, earthMesh });
     }
 
-    disposeImpactor(currentState, { scene, earthMesh });
     currentState = null;
-    snapshot.remainingSeconds = null;
-    snapshot.impacted = false;
-    snapshot.latitude = null;
-    snapshot.longitude = null;
-    snapshot.yieldMegatons = null;
-    snapshot.effectBands = [];
-    snapshot.name = null;
-    snapshot.impactCategory = null;
-    return true;
+    clearSnapshot();
+    return hadImpactor;
   }
 
   function spawn(config, { currentOrbitFrame } = {}) {
@@ -492,20 +990,17 @@ function createImpactorManager({ scene, earthMesh, earthOrbitElements }) {
     snapshot.impacted = state.impacted;
     snapshot.latitude = state.latitude;
     snapshot.longitude = state.longitude;
-    snapshot.yieldMegatons = state.yieldMegatons;
-    snapshot.effectBands = state.effectBands;
     snapshot.name = state.name;
 
-    const impactCategorySummary = state.impactCategory
-      ? {
-          id: state.impactCategory.id,
-          name: state.impactCategory.name,
-          rangeLabel: state.impactCategory.rangeLabel,
-          description: state.impactCategory.description
-        }
-      : null;
+    applyImpactOutputs(currentState, {
+      yieldMegatons: state.yieldMegatons,
+      impactCategory: state.impactCategory,
+      effectBands: state.effectBands
+    });
 
-    snapshot.impactCategory = impactCategorySummary;
+    const impactCategorySummary = snapshot.impactCategory
+      ? { ...snapshot.impactCategory }
+      : null;
 
     return {
       yieldMegatons: state.yieldMegatons,
@@ -524,19 +1019,211 @@ function createImpactorManager({ scene, earthMesh, earthOrbitElements }) {
     }
 
     const frame = orbitFrames ?? currentState.previousOrbitFrame ?? 0;
+    const previousFrame = currentState.previousOrbitFrame ?? frame;
     currentState.previousOrbitFrame = frame;
 
-    const targetFrame = Math.min(frame, currentState.impactEpochFrame);
-    const { position } = propagateKepler(currentState.keplerElements, targetFrame);
-    orbitPositionToScene(position, currentState.mesh.position);
+    const deltaFrames = Math.max(frame - previousFrame, 0);
+    const deltaSeconds = deltaFrames * SECONDS_PER_FRAME;
+    currentState.elapsedSeconds = (currentState.elapsedSeconds ?? 0) + deltaSeconds;
 
-    if (frame >= currentState.impactEpochFrame) {
+    const earthState = propagateKepler(earthOrbitElements, frame);
+    const earthScenePosition = orbitPositionToScene(earthState.position, new THREE.Vector3());
+
+    const targetFrame = currentState.dragActive
+      ? frame
+      : Math.min(frame, currentState.impactEpochFrame);
+    const { position } = propagateKepler(currentState.keplerElements, targetFrame);
+    const keplerScenePosition = orbitPositionToScene(position, new THREE.Vector3());
+
+    if (!currentState.dragActive && !currentState.impacted) {
+      const velocitySample = sampleVelocitiesAtFrame(
+        currentState.keplerElements,
+        earthOrbitElements,
+        targetFrame
+      );
+      currentState.relativeVelocityKmPerSecond = velocitySample.relativeVelocity.clone();
+      currentState.impactVelocityKmPerSecond =
+        currentState.relativeVelocityKmPerSecond.length();
+      if (currentState.impactNormalOrbit) {
+        currentState.entryAngleSin = computeEntryAngleSin(
+          currentState.relativeVelocityKmPerSecond,
+          currentState.impactNormalOrbit
+        );
+      }
+
+      const relativeScene = tempVectorA.copy(keplerScenePosition).sub(earthScenePosition);
+      const relativeKm = tempVectorB.copy(relativeScene).multiplyScalar(KILOMETERS_PER_SCENE_UNIT);
+      const altitudeKm = relativeKm.length() - EARTH_RADIUS_KILOMETERS;
+
+      if (
+        Number.isFinite(altitudeKm) &&
+        altitudeKm <= currentState.dragStartAltitudeKm &&
+        currentState.crossSectionAreaM2 > 0 &&
+        currentState.massKg > 0
+      ) {
+        currentState.dragActive = true;
+        currentState.dragRelativePositionKm = relativeKm.clone();
+        currentState.dragRelativeVelocityKmPerSecond = velocitySample.relativeVelocity.clone();
+        currentState.atmosphericEntryFrame = frame;
+        console.log(
+          '[Impactor] Atmospheric drag engaged at altitude',
+          Number(altitudeKm.toFixed(2)),
+          'km'
+        );
+      } else {
+        currentState.mesh.position.copy(keplerScenePosition);
+      }
+    }
+
+    if (currentState.dragActive && !currentState.impacted) {
+      if (!currentState.dragRelativePositionKm) {
+        currentState.dragRelativePositionKm = new THREE.Vector3();
+      }
+      if (!currentState.dragRelativeVelocityKmPerSecond) {
+        currentState.dragRelativeVelocityKmPerSecond = new THREE.Vector3();
+      }
+
+      if (deltaSeconds > 0) {
+        const relativePositionKm = currentState.dragRelativePositionKm;
+        const radiusKm = relativePositionKm.length();
+
+        if (radiusKm > 0) {
+          const altitudeKm = radiusKm - EARTH_RADIUS_KILOMETERS;
+          const airDensity = computeAtmosphericDensityKgPerM3(altitudeKm);
+          const relativeVelocityKmPerSecond = currentState.dragRelativeVelocityKmPerSecond;
+          const speedKmPerSecond = relativeVelocityKmPerSecond.length();
+
+          const dragAccelerationVector = tempVectorA.set(0, 0, 0);
+          if (
+            airDensity > 0 &&
+            speedKmPerSecond > 0 &&
+            currentState.crossSectionAreaM2 > 0 &&
+            currentState.massKg > 0
+          ) {
+            const speedMetersPerSecond = speedKmPerSecond * 1000;
+            const dragForce =
+              0.5 *
+              airDensity *
+              speedMetersPerSecond *
+              speedMetersPerSecond *
+              currentState.dragCoefficient *
+              currentState.crossSectionAreaM2;
+            const dragAccelerationKmPerS2 = (dragForce / currentState.massKg) / 1000;
+            dragAccelerationVector.copy(relativeVelocityKmPerSecond)
+              .normalize()
+              .multiplyScalar(-dragAccelerationKmPerS2);
+          }
+
+          const gravityAcceleration = tempVectorB
+            .copy(relativePositionKm)
+            .multiplyScalar(
+              -EARTH_MU_KM3_PER_S2 /
+                Math.pow(Math.max(radiusKm, EARTH_RADIUS_KILOMETERS), 3)
+            );
+
+          const totalAcceleration = tempVectorC
+            .copy(gravityAcceleration)
+            .add(dragAccelerationVector)
+            .multiplyScalar(deltaSeconds);
+          currentState.dragRelativeVelocityKmPerSecond.add(totalAcceleration);
+          currentState.dragRelativePositionKm.add(
+            tempVectorC.copy(currentState.dragRelativeVelocityKmPerSecond).multiplyScalar(deltaSeconds)
+          );
+        }
+      }
+
+      let radiusKm = currentState.dragRelativePositionKm.length();
+      if (radiusKm <= EARTH_RADIUS_KILOMETERS) {
+        const impactSpeedKmPerSecond = currentState.dragRelativeVelocityKmPerSecond.length();
+        const impactEntryAngleSin = computeEntryAngleSin(
+          currentState.dragRelativeVelocityKmPerSecond,
+          currentState.dragRelativePositionKm
+        );
+        currentState.entryAngleSin = impactEntryAngleSin;
+        currentState.impactVelocityKmPerSecond = impactSpeedKmPerSecond;
+        const impactYieldMegatons = computeYieldMegatons(
+          currentState.massKg,
+          impactSpeedKmPerSecond,
+          currentState.couplingEfficiency,
+          impactEntryAngleSin
+        );
+        const { category: impactCategoryFinal, bands: impactBandsFinal } =
+          computeEffectBands(impactYieldMegatons);
+        applyImpactOutputs(currentState, {
+          yieldMegatons: impactYieldMegatons,
+          impactCategory: impactCategoryFinal,
+          effectBands: impactBandsFinal
+        });
+
+        if (radiusKm > 0) {
+          tempVectorA.copy(currentState.dragRelativePositionKm).normalize();
+        } else {
+          tempVectorA.set(0, 1, 0);
+        }
+        currentState.dragRelativePositionKm.copy(
+          tempVectorA.multiplyScalar(EARTH_RADIUS_KILOMETERS)
+        );
+        currentState.impacted = true;
+        currentState.dragRelativeVelocityKmPerSecond.set(0, 0, 0);
+      }
+
+      const relativeSceneUnits = tempVectorA
+        .copy(currentState.dragRelativePositionKm)
+        .multiplyScalar(1 / KILOMETERS_PER_SCENE_UNIT);
+      const worldPosition = tempVectorB.copy(earthScenePosition).add(relativeSceneUnits);
+      currentState.mesh.position.copy(worldPosition);
+      currentState.impactScenePosition = worldPosition.clone();
+      currentState.relativeVelocityKmPerSecond = currentState.dragRelativeVelocityKmPerSecond.clone();
+      currentState.impactVelocityKmPerSecond =
+        currentState.relativeVelocityKmPerSecond.length();
+      currentState.entryAngleSin = computeEntryAngleSin(
+        currentState.dragRelativeVelocityKmPerSecond,
+        currentState.dragRelativePositionKm
+      );
+    }
+
+    if (!currentState.dragActive && frame >= currentState.impactEpochFrame && !currentState.impacted) {
+      const finalSpeedKmPerSecond =
+        currentState.relativeVelocityKmPerSecond?.length?.() ?? 0;
+      currentState.impactVelocityKmPerSecond = finalSpeedKmPerSecond;
+      const finalEntryAngleSin = computeEntryAngleSin(
+        currentState.relativeVelocityKmPerSecond,
+        currentState.impactNormalOrbit
+      );
+      currentState.entryAngleSin = finalEntryAngleSin;
+      const finalYieldMegatons = computeYieldMegatons(
+        currentState.massKg,
+        finalSpeedKmPerSecond,
+        currentState.couplingEfficiency,
+        finalEntryAngleSin
+      );
+      const { category: finalCategory, bands: finalBands } = computeEffectBands(finalYieldMegatons);
+      applyImpactOutputs(currentState, {
+        yieldMegatons: finalYieldMegatons,
+        impactCategory: finalCategory,
+        effectBands: finalBands
+      });
       currentState.impacted = true;
       currentState.mesh.position.copy(currentState.impactScenePosition);
     }
 
-    const remainingFrames = Math.max(currentState.impactEpochFrame - frame, 0);
-    const remainingSeconds = remainingFrames * SECONDS_PER_FRAME;
+    let remainingSeconds = 0;
+    if (currentState.impacted) {
+      remainingSeconds = 0;
+    } else if (currentState.dragActive) {
+      const radiusKm = currentState.dragRelativePositionKm?.length?.() ?? EARTH_RADIUS_KILOMETERS;
+      const altitudeKm = Math.max(radiusKm - EARTH_RADIUS_KILOMETERS, 0);
+      const speedKmPerSecond = currentState.dragRelativeVelocityKmPerSecond?.length?.() ?? 0;
+      if (speedKmPerSecond > 1e-5) {
+        remainingSeconds = altitudeKm / speedKmPerSecond;
+      } else {
+        const remainingFrames = Math.max(currentState.impactEpochFrame - frame, 0);
+        remainingSeconds = remainingFrames * SECONDS_PER_FRAME;
+      }
+    } else {
+      const remainingFrames = Math.max(currentState.impactEpochFrame - frame, 0);
+      remainingSeconds = remainingFrames * SECONDS_PER_FRAME;
+    }
 
     snapshot.remainingSeconds = remainingSeconds;
     snapshot.impacted = currentState.impacted;
