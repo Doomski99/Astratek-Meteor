@@ -860,6 +860,17 @@ function createImpactorManager({ scene, earthMesh, earthOrbitElements }) {
     impactCategory: null
   };
 
+  function clearSnapshot() {
+    snapshot.remainingSeconds = null;
+    snapshot.impacted = false;
+    snapshot.latitude = null;
+    snapshot.longitude = null;
+    snapshot.yieldMegatons = null;
+    snapshot.effectBands = [];
+    snapshot.name = null;
+    snapshot.impactCategory = null;
+  }
+
   function rebuildOverlay(state) {
     if (!state) {
       return;
@@ -916,7 +927,7 @@ function createImpactorManager({ scene, earthMesh, earthOrbitElements }) {
     state.impactCategory = impactCategory ?? null;
 
     snapshot.yieldMegatons = safeYield;
-    snapshot.effectBands = safeBands;
+    snapshot.effectBands = safeBands.map(band => ({ ...band }));
     snapshot.name = state.name;
 
     if (state.impactCategory) {
@@ -943,28 +954,24 @@ function createImpactorManager({ scene, earthMesh, earthOrbitElements }) {
       latitude: snapshot.latitude,
       longitude: snapshot.longitude,
       yieldMegatons: snapshot.yieldMegatons,
-      effectBands: snapshot.effectBands,
+      effectBands: snapshot.effectBands.map(band => ({ ...band })),
       name: snapshot.name,
       impactCategory: snapshot.impactCategory
+        ? { ...snapshot.impactCategory }
+        : null
     };
   }
 
   function reset() {
-    if (!currentState) {
-      return false;
+    const hadImpactor = !!currentState;
+
+    if (currentState) {
+      disposeImpactor(currentState, { scene, earthMesh });
     }
 
-    disposeImpactor(currentState, { scene, earthMesh });
     currentState = null;
-    snapshot.remainingSeconds = null;
-    snapshot.impacted = false;
-    snapshot.latitude = null;
-    snapshot.longitude = null;
-    snapshot.yieldMegatons = null;
-    snapshot.effectBands = [];
-    snapshot.name = null;
-    snapshot.impactCategory = null;
-    return true;
+    clearSnapshot();
+    return hadImpactor;
   }
 
   function spawn(config, { currentOrbitFrame } = {}) {
