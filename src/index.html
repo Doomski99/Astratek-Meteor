@@ -28,8 +28,12 @@
                 <input id="impactorName" class="impactor-form__input" type="text" placeholder="Impactor name (optional)">
             </div>
             <div class="impactor-form__field">
-                <label class="impactor-form__label" for="impactorMass">Mass (kg)</label>
-                <input id="impactorMass" class="impactor-form__input" type="number" min="0" step="any" placeholder="e.g. 1.5e9" required>
+                <label class="impactor-form__label" for="impactorType">Asteroid Type</label>
+                <select id="impactorType" class="impactor-form__input" required>
+                    <option value="M">M-type (Metallic)</option>
+                    <option value="S">S-type (Silicaceous)</option>
+                    <option value="C">C-type (Carbonaceous)</option>
+                </select>
             </div>
             <div class="impactor-form__field">
                 <label class="impactor-form__label" for="impactorDiameter">Diameter (m)</label>
