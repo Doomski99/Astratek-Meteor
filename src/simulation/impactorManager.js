@@ -308,10 +308,19 @@ function sceneToOrbitVector(sceneVector, target = new THREE.Vector3()) {
   return target;
 }
 
-function computeYieldMegatons(massKg, velocityKmPerSecond) {
-  const speedMetersPerSecond = velocityKmPerSecond * 1000;
-  const energyJoules = 0.5 * massKg * speedMetersPerSecond * speedMetersPerSecond;
-  return energyJoules / MEGATON_JOULES;
+function computeYieldMegatons(massKg, velocityKmPerSecond, couplingEfficiency = 1) {
+  const safeMassKg = Number.isFinite(massKg) && massKg > 0 ? massKg : 0;
+  const safeVelocityKmPerSecond =
+    Number.isFinite(velocityKmPerSecond) && velocityKmPerSecond > 0
+      ? velocityKmPerSecond
+      : 0;
+  const clampedCoupling = Math.min(Math.max(couplingEfficiency ?? 1, 0), 1);
+
+  const speedMetersPerSecond = safeVelocityKmPerSecond * 1000;
+  const kineticEnergyJoules = 0.5 * safeMassKg * speedMetersPerSecond * speedMetersPerSecond;
+  const coupledEnergyJoules = kineticEnergyJoules * clampedCoupling;
+
+  return coupledEnergyJoules / MEGATON_JOULES;
 }
 
 function computeEffectBands(yieldMegatons) {
@@ -472,12 +481,19 @@ function buildImpactorState({
     massKg,
     diameterMeters,
     velocityKmPerSecond,
-    leadTimeSeconds = DEFAULT_LEAD_TIME_SECONDS
+    leadTimeSeconds = DEFAULT_LEAD_TIME_SECONDS,
+    couplingEfficiency,
+    densityKgPerM3,
+    asteroidType
   } = config;
 
   if (!Number.isFinite(velocityKmPerSecond) || velocityKmPerSecond <= 0) {
     throw new Error('Velocity must be a positive number.');
   }
+
+  const safeCouplingEfficiency = Number.isFinite(couplingEfficiency)
+    ? Math.min(Math.max(couplingEfficiency, 0), 1)
+    : 1;
 
   const radiusMeters = Math.max(Number.isFinite(diameterMeters) ? diameterMeters / 2 : 0, 0);
   const crossSectionAreaM2 = Math.PI * radiusMeters * radiusMeters;
@@ -609,7 +625,11 @@ function buildImpactorState({
     .sub(earthVelocityKmPerSecond);
 
   const impactSpeedKmPerSecond = relativeVelocityAtImpactKmPerSecond.length();
-  const yieldMegatons = computeYieldMegatons(massKg, impactSpeedKmPerSecond);
+  const yieldMegatons = computeYieldMegatons(
+    massKg,
+    impactSpeedKmPerSecond,
+    safeCouplingEfficiency
+  );
   const { category: impactCategory, bands: effectBands } = computeEffectBands(yieldMegatons);
 
   logVelocityDebug('Earth heliocentric velocity @ impact', earthVelocityKmPerSecond);
@@ -731,6 +751,9 @@ function buildImpactorState({
     impactorVelocityKmPerSecondAtImpact: impactorVelocityAtImpactClone,
     relativeVelocityKmPerSecond: relativeVelocityAtImpactClone,
     impactVelocityKmPerSecond: impactSpeedKmPerSecond,
+    couplingEfficiency: safeCouplingEfficiency,
+    densityKgPerM3: Number.isFinite(densityKgPerM3) && densityKgPerM3 > 0 ? densityKgPerM3 : null,
+    asteroidType: asteroidType ?? null,
     dragCoefficient: DRAG_COEFFICIENT,
     crossSectionAreaM2,
     dragStartAltitudeKm: ATMOSPHERIC_ENTRY_ALTITUDE_KM,
@@ -1048,7 +1071,8 @@ function createImpactorManager({ scene, earthMesh, earthOrbitElements }) {
         currentState.impactVelocityKmPerSecond = impactSpeedKmPerSecond;
         const impactYieldMegatons = computeYieldMegatons(
           currentState.massKg,
-          impactSpeedKmPerSecond
+          impactSpeedKmPerSecond,
+          currentState.couplingEfficiency
         );
         const { category: impactCategoryFinal, bands: impactBandsFinal } =
           computeEffectBands(impactYieldMegatons);
@@ -1085,7 +1109,11 @@ function createImpactorManager({ scene, earthMesh, earthOrbitElements }) {
       const finalSpeedKmPerSecond =
         currentState.relativeVelocityKmPerSecond?.length?.() ?? 0;
       currentState.impactVelocityKmPerSecond = finalSpeedKmPerSecond;
-      const finalYieldMegatons = computeYieldMegatons(currentState.massKg, finalSpeedKmPerSecond);
+      const finalYieldMegatons = computeYieldMegatons(
+        currentState.massKg,
+        finalSpeedKmPerSecond,
+        currentState.couplingEfficiency
+      );
       const { category: finalCategory, bands: finalBands } = computeEffectBands(finalYieldMegatons);
       applyImpactOutputs(currentState, {
         yieldMegatons: finalYieldMegatons,
