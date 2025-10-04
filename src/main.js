@@ -120,18 +120,18 @@ const impactMapCaptionBaseText = impactMapCaptionElement?.textContent ?? '';
 
 const ASTEROID_TYPES = {
   M: {
-    densityKgPerM3: 7800,
-    couplingEfficiency: 0.5,
+    densityKgPerM3: 7500,
+    couplingEfficiency: 0.8,
     nominalVelocityKmPerSecond: 22
   },
   S: {
-    densityKgPerM3: 3500,
-    couplingEfficiency: 0.4,
+    densityKgPerM3: 3000,
+    couplingEfficiency: 0.45,
     nominalVelocityKmPerSecond: 18
   },
   C: {
-    densityKgPerM3: 2100,
-    couplingEfficiency: 0.35,
+    densityKgPerM3: 2000,
+    couplingEfficiency: 0.2,
     nominalVelocityKmPerSecond: 15
   }
 };
