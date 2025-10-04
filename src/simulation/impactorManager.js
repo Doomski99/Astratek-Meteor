@@ -25,6 +25,59 @@ const tempOrbitVector = new THREE.Vector3();
 const tempVelocity = new THREE.Vector3();
 const kHat = new THREE.Vector3(0, 0, 1);
 
+function ensureOrthogonalBasis(normal) {
+  const safeNormal = normal.clone().normalize();
+  let seed = new THREE.Vector3(
+    THREE.MathUtils.randFloatSpread(2),
+    THREE.MathUtils.randFloatSpread(2),
+    THREE.MathUtils.randFloatSpread(2)
+  );
+
+  if (seed.lengthSq() < 1e-4 || Math.abs(seed.dot(safeNormal)) > 0.95) {
+    seed.set(safeNormal.y || 1, safeNormal.z || 0.5, safeNormal.x || 0.25);
+  }
+
+  const tangent1 = seed.clone().cross(safeNormal).normalize();
+  if (tangent1.lengthSq() < 1e-8) {
+    tangent1.set(-safeNormal.z, safeNormal.x, safeNormal.y).normalize();
+  }
+
+  const tangent2 = safeNormal.clone().cross(tangent1).normalize();
+  return { tangent1, tangent2, normal: safeNormal };
+}
+
+function createApproachVelocity(impactNormal, speedKmPerSecond) {
+  const { tangent1, tangent2, normal } = ensureOrthogonalBasis(impactNormal);
+
+  const tangentialFraction = THREE.MathUtils.randFloat(0.15, 0.75);
+  const tangentialAngle = THREE.MathUtils.randFloat(0, TWO_PI);
+  const radialFraction = Math.sqrt(Math.max(1 - tangentialFraction * tangentialFraction, 0.05));
+
+  const tangentialComponent = tangent1
+    .clone()
+    .multiplyScalar(Math.cos(tangentialAngle))
+    .add(tangent2.clone().multiplyScalar(Math.sin(tangentialAngle)));
+
+  const approachDirection = normal
+    .clone()
+    .multiplyScalar(-radialFraction)
+    .add(tangentialComponent.multiplyScalar(tangentialFraction))
+    .normalize();
+
+  return approachDirection.multiplyScalar(speedKmPerSecond);
+}
+
+function logVelocityDebug(label, vectorKmPerSecond) {
+  if (!vectorKmPerSecond) {
+    return;
+  }
+
+  const formatted = vectorKmPerSecond
+    .toArray()
+    .map(component => Number(component.toFixed(3)));
+  console.log(`[Impactor] ${label}:`, formatted, 'km/s');
+}
+
 const BASE_EFFECT_BANDS = [
   {
     id: 'fireball',
@@ -299,7 +352,7 @@ function buildImpactorState({
   const impactOffsetKm = impactNormalOrbit.clone().multiplyScalar(EARTH_RADIUS_SCENE_KILOMETERS);
   const impactPositionKm = earthPositionKm.clone().add(impactOffsetKm);
 
-  const relativeVelocityKm = impactNormalOrbit.clone().multiplyScalar(-velocityKmPerSecond);
+  let relativeVelocityKm = createApproachVelocity(impactNormalOrbit, velocityKmPerSecond);
 
   const orbitRadiusKm = Math.max(earthPositionKm.length(), 1);
   const escapeSpeed = Math.sqrt((2 * SOLAR_MU_KM3_PER_S2) / orbitRadiusKm) * 0.98;
@@ -312,7 +365,23 @@ function buildImpactorState({
 
   const impactVelocityKm = earthVelocityKmPerSecond.clone().add(relativeVelocityKm);
 
+  logVelocityDebug('Earth heliocentric velocity', earthVelocityKmPerSecond);
+  logVelocityDebug('Impactor heliocentric velocity', impactVelocityKm);
+
   const keplerElements = createKeplerFromState(impactPositionKm, impactVelocityKm, impactEpochFrame);
+
+  console.log('[Impactor] Generated Keplerian elements:', {
+    semiMajorAxisKm: Number((keplerElements.semiMajorAxis * KILOMETERS_PER_SCENE_UNIT).toFixed(2)),
+    eccentricity: Number(keplerElements.eccentricity.toFixed(4)),
+    inclinationDeg: Number(THREE.MathUtils.radToDeg(keplerElements.inclination).toFixed(3)),
+    longitudeOfAscendingNodeDeg: Number(
+      THREE.MathUtils.radToDeg(keplerElements.longitudeOfAscendingNode).toFixed(3)
+    ),
+    argumentOfPeriapsisDeg: Number(
+      THREE.MathUtils.radToDeg(keplerElements.argumentOfPeriapsis).toFixed(3)
+    ),
+    meanAnomalyDeg: Number(THREE.MathUtils.radToDeg(keplerElements.meanAnomalyAtEpoch).toFixed(3))
+  });
 
   const { position: currentOrbitPosition } = propagateKepler(keplerElements, currentFrame);
   const startScenePosition = orbitPositionToScene(currentOrbitPosition, new THREE.Vector3());
