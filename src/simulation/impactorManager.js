@@ -482,9 +482,6 @@ function buildImpactorState({
   const radiusMeters = Math.max(Number.isFinite(diameterMeters) ? diameterMeters / 2 : 0, 0);
   const crossSectionAreaM2 = Math.PI * radiusMeters * radiusMeters;
 
-  const yieldMegatons = computeYieldMegatons(massKg, velocityKmPerSecond);
-  const { category: impactCategory, bands: effectBands } = computeEffectBands(yieldMegatons);
-
   const latitude = THREE.MathUtils.randFloatSpread(180);
   const longitude = THREE.MathUtils.randFloatSpread(360);
   const latRad = THREE.MathUtils.degToRad(latitude);
@@ -611,6 +608,10 @@ function buildImpactorState({
     .clone()
     .sub(earthVelocityKmPerSecond);
 
+  const impactSpeedKmPerSecond = relativeVelocityAtImpactKmPerSecond.length();
+  const yieldMegatons = computeYieldMegatons(massKg, impactSpeedKmPerSecond);
+  const { category: impactCategory, bands: effectBands } = computeEffectBands(yieldMegatons);
+
   logVelocityDebug('Earth heliocentric velocity @ impact', earthVelocityKmPerSecond);
   logVelocityDebug('Impactor heliocentric velocity @ impact', impactorVelocityKmPerSecond);
   logVelocityDebug(
@@ -654,23 +655,6 @@ function buildImpactorState({
   mesh.userData.isImpactor = true;
   mesh.position.copy(startScenePosition);
   scene.add(mesh);
-
-  const overlayEntry = {
-    data: { tntYieldMt: yieldMegatons },
-    earthOrbitIntersection: {
-      intersects: true,
-      impactNormal: impactNormalScene.clone(),
-      impactPoint: impactNormalScene.clone().multiplyScalar(earthRadiusScene)
-    }
-  };
-
-  const overlay = createImpactOverlayMesh(overlayEntry, earthRadiusScene, {
-    bands: effectBands
-  });
-
-  if (overlay) {
-    (earthMesh ?? scene).add(overlay);
-  }
 
   let trajectoryLine = null;
   const trajectoryPoints = [];
@@ -725,7 +709,7 @@ function buildImpactorState({
 
   return {
     mesh,
-    overlay,
+    overlay: null,
     trajectoryLine,
     effectBands,
     yieldMegatons,
@@ -746,6 +730,7 @@ function buildImpactorState({
     earthVelocityKmPerSecondAtImpact: earthVelocityAtImpactClone,
     impactorVelocityKmPerSecondAtImpact: impactorVelocityAtImpactClone,
     relativeVelocityKmPerSecond: relativeVelocityAtImpactClone,
+    impactVelocityKmPerSecond: impactSpeedKmPerSecond,
     dragCoefficient: DRAG_COEFFICIENT,
     crossSectionAreaM2,
     dragStartAltitudeKm: ATMOSPHERIC_ENTRY_ALTITUDE_KM,
@@ -754,7 +739,8 @@ function buildImpactorState({
     dragRelativeVelocityKmPerSecond: null,
     atmosphericEntryFrame: null,
     elapsedSeconds: 0,
-    initialTimeToImpactSeconds: timeToImpactSeconds
+    initialTimeToImpactSeconds: timeToImpactSeconds,
+    earthRadiusScene
   };
 }
 
@@ -796,6 +782,79 @@ function createImpactorManager({ scene, earthMesh, earthOrbitElements }) {
     name: null,
     impactCategory: null
   };
+
+  function rebuildOverlay(state) {
+    if (!state) {
+      return;
+    }
+
+    const overlayParent = earthMesh ?? scene;
+
+    if (state.overlay) {
+      if (state.overlay.parent) {
+        state.overlay.parent.remove(state.overlay);
+      }
+      disposeObject(state.overlay);
+      state.overlay = null;
+    }
+
+    const impactNormal = state.impactNormalScene?.clone?.();
+    if (!(impactNormal instanceof THREE.Vector3)) {
+      return;
+    }
+
+    const earthRadiusScene = Number.isFinite(state.earthRadiusScene)
+      ? state.earthRadiusScene
+      : EARTH_RADIUS_SCENE_UNITS;
+
+    const overlayEntry = {
+      data: { tntYieldMt: state.yieldMegatons ?? 0 },
+      earthOrbitIntersection: {
+        intersects: true,
+        impactNormal,
+        impactPoint: impactNormal.clone().multiplyScalar(earthRadiusScene)
+      }
+    };
+
+    const overlay = createImpactOverlayMesh(overlayEntry, earthRadiusScene, {
+      bands: state.effectBands
+    });
+
+    if (overlay) {
+      overlayParent.add(overlay);
+      state.overlay = overlay;
+    }
+  }
+
+  function applyImpactOutputs(state, { yieldMegatons, impactCategory, effectBands }) {
+    if (!state) {
+      return;
+    }
+
+    const safeYield = Number.isFinite(yieldMegatons) ? yieldMegatons : 0;
+    const safeBands = Array.isArray(effectBands) ? effectBands : [];
+
+    state.yieldMegatons = safeYield;
+    state.effectBands = safeBands;
+    state.impactCategory = impactCategory ?? null;
+
+    snapshot.yieldMegatons = safeYield;
+    snapshot.effectBands = safeBands;
+    snapshot.name = state.name;
+
+    if (state.impactCategory) {
+      snapshot.impactCategory = {
+        id: state.impactCategory.id,
+        name: state.impactCategory.name,
+        rangeLabel: state.impactCategory.rangeLabel,
+        description: state.impactCategory.description
+      };
+    } else {
+      snapshot.impactCategory = null;
+    }
+
+    rebuildOverlay(state);
+  }
 
   function getSnapshot() {
     if (!currentState) {
@@ -847,20 +906,17 @@ function createImpactorManager({ scene, earthMesh, earthOrbitElements }) {
     snapshot.impacted = state.impacted;
     snapshot.latitude = state.latitude;
     snapshot.longitude = state.longitude;
-    snapshot.yieldMegatons = state.yieldMegatons;
-    snapshot.effectBands = state.effectBands;
     snapshot.name = state.name;
 
-    const impactCategorySummary = state.impactCategory
-      ? {
-          id: state.impactCategory.id,
-          name: state.impactCategory.name,
-          rangeLabel: state.impactCategory.rangeLabel,
-          description: state.impactCategory.description
-        }
-      : null;
+    applyImpactOutputs(currentState, {
+      yieldMegatons: state.yieldMegatons,
+      impactCategory: state.impactCategory,
+      effectBands: state.effectBands
+    });
 
-    snapshot.impactCategory = impactCategorySummary;
+    const impactCategorySummary = snapshot.impactCategory
+      ? { ...snapshot.impactCategory }
+      : null;
 
     return {
       yieldMegatons: state.yieldMegatons,
@@ -902,6 +958,8 @@ function createImpactorManager({ scene, earthMesh, earthOrbitElements }) {
         targetFrame
       );
       currentState.relativeVelocityKmPerSecond = velocitySample.relativeVelocity.clone();
+      currentState.impactVelocityKmPerSecond =
+        currentState.relativeVelocityKmPerSecond.length();
 
       const relativeScene = tempVectorA.copy(keplerScenePosition).sub(earthScenePosition);
       const relativeKm = tempVectorB.copy(relativeScene).multiplyScalar(KILOMETERS_PER_SCENE_UNIT);
@@ -986,6 +1044,20 @@ function createImpactorManager({ scene, earthMesh, earthOrbitElements }) {
 
       let radiusKm = currentState.dragRelativePositionKm.length();
       if (radiusKm <= EARTH_RADIUS_KILOMETERS) {
+        const impactSpeedKmPerSecond = currentState.dragRelativeVelocityKmPerSecond.length();
+        currentState.impactVelocityKmPerSecond = impactSpeedKmPerSecond;
+        const impactYieldMegatons = computeYieldMegatons(
+          currentState.massKg,
+          impactSpeedKmPerSecond
+        );
+        const { category: impactCategoryFinal, bands: impactBandsFinal } =
+          computeEffectBands(impactYieldMegatons);
+        applyImpactOutputs(currentState, {
+          yieldMegatons: impactYieldMegatons,
+          impactCategory: impactCategoryFinal,
+          effectBands: impactBandsFinal
+        });
+
         if (radiusKm > 0) {
           tempVectorA.copy(currentState.dragRelativePositionKm).normalize();
         } else {
@@ -1005,9 +1077,21 @@ function createImpactorManager({ scene, earthMesh, earthOrbitElements }) {
       currentState.mesh.position.copy(worldPosition);
       currentState.impactScenePosition = worldPosition.clone();
       currentState.relativeVelocityKmPerSecond = currentState.dragRelativeVelocityKmPerSecond.clone();
+      currentState.impactVelocityKmPerSecond =
+        currentState.relativeVelocityKmPerSecond.length();
     }
 
-    if (!currentState.dragActive && frame >= currentState.impactEpochFrame) {
+    if (!currentState.dragActive && frame >= currentState.impactEpochFrame && !currentState.impacted) {
+      const finalSpeedKmPerSecond =
+        currentState.relativeVelocityKmPerSecond?.length?.() ?? 0;
+      currentState.impactVelocityKmPerSecond = finalSpeedKmPerSecond;
+      const finalYieldMegatons = computeYieldMegatons(currentState.massKg, finalSpeedKmPerSecond);
+      const { category: finalCategory, bands: finalBands } = computeEffectBands(finalYieldMegatons);
+      applyImpactOutputs(currentState, {
+        yieldMegatons: finalYieldMegatons,
+        impactCategory: finalCategory,
+        effectBands: finalBands
+      });
       currentState.impacted = true;
       currentState.mesh.position.copy(currentState.impactScenePosition);
     }
