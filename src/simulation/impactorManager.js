@@ -37,6 +37,8 @@ const yAxis = new THREE.Vector3(0, 1, 0);
 const tempVectorA = new THREE.Vector3();
 const tempVectorB = new THREE.Vector3();
 const tempVectorC = new THREE.Vector3();
+const tempEntryVelocity = new THREE.Vector3();
+const tempEntryNormal = new THREE.Vector3();
 
 function ensureOrthogonalBasis(normal) {
   const safeNormal = normal.clone().normalize();
@@ -308,17 +310,50 @@ function sceneToOrbitVector(sceneVector, target = new THREE.Vector3()) {
   return target;
 }
 
-function computeYieldMegatons(massKg, velocityKmPerSecond, couplingEfficiency = 1) {
+function computeEntryAngleSin(relativeVelocity, surfaceNormal) {
+  if (
+    !(relativeVelocity instanceof THREE.Vector3) ||
+    !(surfaceNormal instanceof THREE.Vector3)
+  ) {
+    return 0;
+  }
+
+  tempEntryVelocity.copy(relativeVelocity);
+  const speed = tempEntryVelocity.length();
+  if (!Number.isFinite(speed) || speed <= 0) {
+    return 0;
+  }
+
+  tempEntryNormal.copy(surfaceNormal);
+  const normalLength = tempEntryNormal.length();
+  if (!Number.isFinite(normalLength) || normalLength <= 0) {
+    return 0;
+  }
+
+  const downwardNormal = tempEntryNormal.multiplyScalar(-1 / normalLength);
+  tempEntryVelocity.multiplyScalar(1 / speed);
+  const cosine = THREE.MathUtils.clamp(tempEntryVelocity.dot(downwardNormal), 0, 1);
+
+  return cosine;
+}
+
+function computeYieldMegatons(
+  massKg,
+  velocityKmPerSecond,
+  couplingEfficiency = 1,
+  entryAngleSin = 1
+) {
   const safeMassKg = Number.isFinite(massKg) && massKg > 0 ? massKg : 0;
   const safeVelocityKmPerSecond =
     Number.isFinite(velocityKmPerSecond) && velocityKmPerSecond > 0
       ? velocityKmPerSecond
       : 0;
   const clampedCoupling = Math.min(Math.max(couplingEfficiency ?? 1, 0), 1);
+  const clampedEntryAngleSin = Math.min(Math.max(entryAngleSin ?? 0, 0), 1);
 
   const speedMetersPerSecond = safeVelocityKmPerSecond * 1000;
   const kineticEnergyJoules = 0.5 * safeMassKg * speedMetersPerSecond * speedMetersPerSecond;
-  const coupledEnergyJoules = kineticEnergyJoules * clampedCoupling;
+  const coupledEnergyJoules = kineticEnergyJoules * clampedCoupling * clampedEntryAngleSin;
 
   return coupledEnergyJoules / MEGATON_JOULES;
 }
@@ -624,11 +659,28 @@ function buildImpactorState({
     .clone()
     .sub(earthVelocityKmPerSecond);
 
+  const entryAngleSin = computeEntryAngleSin(
+    relativeVelocityAtImpactKmPerSecond,
+    impactNormalOrbit
+  );
+  if (Number.isFinite(entryAngleSin)) {
+    const clamped = Math.min(Math.max(entryAngleSin, 0), 1);
+    const entryAngleDeg = THREE.MathUtils.radToDeg(Math.asin(clamped));
+    console.log(
+      '[Impactor] Entry angle vs surface:',
+      Number(entryAngleDeg.toFixed(2)),
+      'deg (sinθ =',
+      Number(entryAngleSin.toFixed(3)),
+      ')'
+    );
+  }
+
   const impactSpeedKmPerSecond = relativeVelocityAtImpactKmPerSecond.length();
   const yieldMegatons = computeYieldMegatons(
     massKg,
     impactSpeedKmPerSecond,
-    safeCouplingEfficiency
+    safeCouplingEfficiency,
+    entryAngleSin
   );
   const { category: impactCategory, bands: effectBands } = computeEffectBands(yieldMegatons);
 
@@ -735,6 +787,7 @@ function buildImpactorState({
     yieldMegatons,
     impactCategory,
     impactNormalScene,
+    impactNormalOrbit: impactNormalOrbit.clone(),
     keplerElements,
     impactEpochFrame,
     name: name || 'Impactor',
@@ -751,6 +804,7 @@ function buildImpactorState({
     impactorVelocityKmPerSecondAtImpact: impactorVelocityAtImpactClone,
     relativeVelocityKmPerSecond: relativeVelocityAtImpactClone,
     impactVelocityKmPerSecond: impactSpeedKmPerSecond,
+    entryAngleSin,
     couplingEfficiency: safeCouplingEfficiency,
     densityKgPerM3: Number.isFinite(densityKgPerM3) && densityKgPerM3 > 0 ? densityKgPerM3 : null,
     asteroidType: asteroidType ?? null,
@@ -983,6 +1037,12 @@ function createImpactorManager({ scene, earthMesh, earthOrbitElements }) {
       currentState.relativeVelocityKmPerSecond = velocitySample.relativeVelocity.clone();
       currentState.impactVelocityKmPerSecond =
         currentState.relativeVelocityKmPerSecond.length();
+      if (currentState.impactNormalOrbit) {
+        currentState.entryAngleSin = computeEntryAngleSin(
+          currentState.relativeVelocityKmPerSecond,
+          currentState.impactNormalOrbit
+        );
+      }
 
       const relativeScene = tempVectorA.copy(keplerScenePosition).sub(earthScenePosition);
       const relativeKm = tempVectorB.copy(relativeScene).multiplyScalar(KILOMETERS_PER_SCENE_UNIT);
@@ -1068,11 +1128,17 @@ function createImpactorManager({ scene, earthMesh, earthOrbitElements }) {
       let radiusKm = currentState.dragRelativePositionKm.length();
       if (radiusKm <= EARTH_RADIUS_KILOMETERS) {
         const impactSpeedKmPerSecond = currentState.dragRelativeVelocityKmPerSecond.length();
+        const impactEntryAngleSin = computeEntryAngleSin(
+          currentState.dragRelativeVelocityKmPerSecond,
+          currentState.dragRelativePositionKm
+        );
+        currentState.entryAngleSin = impactEntryAngleSin;
         currentState.impactVelocityKmPerSecond = impactSpeedKmPerSecond;
         const impactYieldMegatons = computeYieldMegatons(
           currentState.massKg,
           impactSpeedKmPerSecond,
-          currentState.couplingEfficiency
+          currentState.couplingEfficiency,
+          impactEntryAngleSin
         );
         const { category: impactCategoryFinal, bands: impactBandsFinal } =
           computeEffectBands(impactYieldMegatons);
@@ -1103,16 +1169,26 @@ function createImpactorManager({ scene, earthMesh, earthOrbitElements }) {
       currentState.relativeVelocityKmPerSecond = currentState.dragRelativeVelocityKmPerSecond.clone();
       currentState.impactVelocityKmPerSecond =
         currentState.relativeVelocityKmPerSecond.length();
+      currentState.entryAngleSin = computeEntryAngleSin(
+        currentState.dragRelativeVelocityKmPerSecond,
+        currentState.dragRelativePositionKm
+      );
     }
 
     if (!currentState.dragActive && frame >= currentState.impactEpochFrame && !currentState.impacted) {
       const finalSpeedKmPerSecond =
         currentState.relativeVelocityKmPerSecond?.length?.() ?? 0;
       currentState.impactVelocityKmPerSecond = finalSpeedKmPerSecond;
+      const finalEntryAngleSin = computeEntryAngleSin(
+        currentState.relativeVelocityKmPerSecond,
+        currentState.impactNormalOrbit
+      );
+      currentState.entryAngleSin = finalEntryAngleSin;
       const finalYieldMegatons = computeYieldMegatons(
         currentState.massKg,
         finalSpeedKmPerSecond,
-        currentState.couplingEfficiency
+        currentState.couplingEfficiency,
+        finalEntryAngleSin
       );
       const { category: finalCategory, bands: finalBands } = computeEffectBands(finalYieldMegatons);
       applyImpactOutputs(currentState, {
