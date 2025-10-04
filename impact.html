@@ -1,0 +1,1210 @@
+<!DOCTYPE html><html><head>
+      <title>impact</title>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      
+      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.css">
+      
+      
+      
+      
+      
+      <style>
+      code[class*=language-],pre[class*=language-]{color:#333;background:0 0;font-family:Consolas,"Liberation Mono",Menlo,Courier,monospace;text-align:left;white-space:pre;word-spacing:normal;word-break:normal;word-wrap:normal;line-height:1.4;-moz-tab-size:8;-o-tab-size:8;tab-size:8;-webkit-hyphens:none;-moz-hyphens:none;-ms-hyphens:none;hyphens:none}pre[class*=language-]{padding:.8em;overflow:auto;border-radius:3px;background:#f5f5f5}:not(pre)>code[class*=language-]{padding:.1em;border-radius:.3em;white-space:normal;background:#f5f5f5}.token.blockquote,.token.comment{color:#969896}.token.cdata{color:#183691}.token.doctype,.token.macro.property,.token.punctuation,.token.variable{color:#333}.token.builtin,.token.important,.token.keyword,.token.operator,.token.rule{color:#a71d5d}.token.attr-value,.token.regex,.token.string,.token.url{color:#183691}.token.atrule,.token.boolean,.token.code,.token.command,.token.constant,.token.entity,.token.number,.token.property,.token.symbol{color:#0086b3}.token.prolog,.token.selector,.token.tag{color:#63a35c}.token.attr-name,.token.class,.token.class-name,.token.function,.token.id,.token.namespace,.token.pseudo-class,.token.pseudo-element,.token.url-reference .token.variable{color:#795da3}.token.entity{cursor:help}.token.title,.token.title .token.punctuation{font-weight:700;color:#1d3e81}.token.list{color:#ed6a43}.token.inserted{background-color:#eaffea;color:#55a532}.token.deleted{background-color:#ffecec;color:#bd2c00}.token.bold{font-weight:700}.token.italic{font-style:italic}.language-json .token.property{color:#183691}.language-markup .token.tag .token.punctuation{color:#333}.language-css .token.function,code.language-css{color:#0086b3}.language-yaml .token.atrule{color:#63a35c}code.language-yaml{color:#183691}.language-ruby .token.function{color:#333}.language-markdown .token.url{color:#795da3}.language-makefile .token.symbol{color:#795da3}.language-makefile .token.variable{color:#183691}.language-makefile .token.builtin{color:#0086b3}.language-bash .token.keyword{color:#0086b3}pre[data-line]{position:relative;padding:1em 0 1em 3em}pre[data-line] .line-highlight-wrapper{position:absolute;top:0;left:0;background-color:transparent;display:block;width:100%}pre[data-line] .line-highlight{position:absolute;left:0;right:0;padding:inherit 0;margin-top:1em;background:hsla(24,20%,50%,.08);background:linear-gradient(to right,hsla(24,20%,50%,.1) 70%,hsla(24,20%,50%,0));pointer-events:none;line-height:inherit;white-space:pre}pre[data-line] .line-highlight:before,pre[data-line] .line-highlight[data-end]:after{content:attr(data-start);position:absolute;top:.4em;left:.6em;min-width:1em;padding:0 .5em;background-color:hsla(24,20%,50%,.4);color:#f4f1ef;font:bold 65%/1.5 sans-serif;text-align:center;vertical-align:.3em;border-radius:999px;text-shadow:none;box-shadow:0 1px #fff}pre[data-line] .line-highlight[data-end]:after{content:attr(data-end);top:auto;bottom:.4em}html body{font-family:'Helvetica Neue',Helvetica,'Segoe UI',Arial,freesans,sans-serif;font-size:16px;line-height:1.6;color:#333;background-color:#fff;overflow:initial;box-sizing:border-box;word-wrap:break-word}html body>:first-child{margin-top:0}html body h1,html body h2,html body h3,html body h4,html body h5,html body h6{line-height:1.2;margin-top:1em;margin-bottom:16px;color:#000}html body h1{font-size:2.25em;font-weight:300;padding-bottom:.3em}html body h2{font-size:1.75em;font-weight:400;padding-bottom:.3em}html body h3{font-size:1.5em;font-weight:500}html body h4{font-size:1.25em;font-weight:600}html body h5{font-size:1.1em;font-weight:600}html body h6{font-size:1em;font-weight:600}html body h1,html body h2,html body h3,html body h4,html body h5{font-weight:600}html body h5{font-size:1em}html body h6{color:#5c5c5c}html body strong{color:#000}html body del{color:#5c5c5c}html body a:not([href]){color:inherit;text-decoration:none}html body a{color:#08c;text-decoration:none}html body a:hover{color:#00a3f5;text-decoration:none}html body img{max-width:100%}html body>p{margin-top:0;margin-bottom:16px;word-wrap:break-word}html body>ol,html body>ul{margin-bottom:16px}html body ol,html body ul{padding-left:2em}html body ol.no-list,html body ul.no-list{padding:0;list-style-type:none}html body ol ol,html body ol ul,html body ul ol,html body ul ul{margin-top:0;margin-bottom:0}html body li{margin-bottom:0}html body li.task-list-item{list-style:none}html body li>p{margin-top:0;margin-bottom:0}html body .task-list-item-checkbox{margin:0 .2em .25em -1.8em;vertical-align:middle}html body .task-list-item-checkbox:hover{cursor:pointer}html body blockquote{margin:16px 0;font-size:inherit;padding:0 15px;color:#5c5c5c;background-color:#f0f0f0;border-left:4px solid #d6d6d6}html body blockquote>:first-child{margin-top:0}html body blockquote>:last-child{margin-bottom:0}html body hr{height:4px;margin:32px 0;background-color:#d6d6d6;border:0 none}html body table{margin:10px 0 15px 0;border-collapse:collapse;border-spacing:0;display:block;width:100%;overflow:auto;word-break:normal;word-break:keep-all}html body table th{font-weight:700;color:#000}html body table td,html body table th{border:1px solid #d6d6d6;padding:6px 13px}html body dl{padding:0}html body dl dt{padding:0;margin-top:16px;font-size:1em;font-style:italic;font-weight:700}html body dl dd{padding:0 16px;margin-bottom:16px}html body code{font-family:Menlo,Monaco,Consolas,'Courier New',monospace;font-size:.85em;color:#000;background-color:#f0f0f0;border-radius:3px;padding:.2em 0}html body code::after,html body code::before{letter-spacing:-.2em;content:'\00a0'}html body pre>code{padding:0;margin:0;word-break:normal;white-space:pre;background:0 0;border:0}html body .highlight{margin-bottom:16px}html body .highlight pre,html body pre{padding:1em;overflow:auto;line-height:1.45;border:#d6d6d6;border-radius:3px}html body .highlight pre{margin-bottom:0;word-break:normal}html body pre code,html body pre tt{display:inline;max-width:initial;padding:0;margin:0;overflow:initial;line-height:inherit;word-wrap:normal;background-color:transparent;border:0}html body pre code:after,html body pre code:before,html body pre tt:after,html body pre tt:before{content:normal}html body blockquote,html body dl,html body ol,html body p,html body pre,html body ul{margin-top:0;margin-bottom:16px}html body kbd{color:#000;border:1px solid #d6d6d6;border-bottom:2px solid #c7c7c7;padding:2px 4px;background-color:#f0f0f0;border-radius:3px}@media print{html body{background-color:#fff}html body h1,html body h2,html body h3,html body h4,html body h5,html body h6{color:#000;page-break-after:avoid}html body blockquote{color:#5c5c5c}html body pre{page-break-inside:avoid}html body table{display:table}html body img{display:block;max-width:100%;max-height:100%}html body code,html body pre{word-wrap:break-word;white-space:pre}}.markdown-preview{width:100%;height:100%;box-sizing:border-box}.markdown-preview ul{list-style:disc}.markdown-preview ul ul{list-style:circle}.markdown-preview ul ul ul{list-style:square}.markdown-preview ol{list-style:decimal}.markdown-preview ol ol,.markdown-preview ul ol{list-style-type:lower-roman}.markdown-preview ol ol ol,.markdown-preview ol ul ol,.markdown-preview ul ol ol,.markdown-preview ul ul ol{list-style-type:lower-alpha}.markdown-preview .newpage,.markdown-preview .pagebreak{page-break-before:always}.markdown-preview pre.line-numbers{position:relative;padding-left:3.8em;counter-reset:linenumber}.markdown-preview pre.line-numbers>code{position:relative}.markdown-preview pre.line-numbers .line-numbers-rows{position:absolute;pointer-events:none;top:1em;font-size:100%;left:0;width:3em;letter-spacing:-1px;border-right:1px solid #999;-webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none}.markdown-preview pre.line-numbers .line-numbers-rows>span{pointer-events:none;display:block;counter-increment:linenumber}.markdown-preview pre.line-numbers .line-numbers-rows>span:before{content:counter(linenumber);color:#999;display:block;padding-right:.8em;text-align:right}.markdown-preview .mathjax-exps .MathJax_Display{text-align:center!important}.markdown-preview:not([data-for=preview]) .code-chunk .code-chunk-btn-group{display:none}.markdown-preview:not([data-for=preview]) .code-chunk .status{display:none}.markdown-preview:not([data-for=preview]) .code-chunk .output-div{margin-bottom:16px}.markdown-preview .md-toc{padding:0}.markdown-preview .md-toc .md-toc-link-wrapper .md-toc-link{display:inline;padding:.25rem 0}.markdown-preview .md-toc .md-toc-link-wrapper .md-toc-link div,.markdown-preview .md-toc .md-toc-link-wrapper .md-toc-link p{display:inline}.markdown-preview .md-toc .md-toc-link-wrapper.highlighted .md-toc-link{font-weight:800}.scrollbar-style::-webkit-scrollbar{width:8px}.scrollbar-style::-webkit-scrollbar-track{border-radius:10px;background-color:transparent}.scrollbar-style::-webkit-scrollbar-thumb{border-radius:5px;background-color:rgba(150,150,150,.66);border:4px solid rgba(150,150,150,.66);background-clip:content-box}html body[for=html-export]:not([data-presentation-mode]){position:relative;width:100%;height:100%;top:0;left:0;margin:0;padding:0;overflow:auto}html body[for=html-export]:not([data-presentation-mode]) .markdown-preview{position:relative;top:0;min-height:100vh}@media screen and (min-width:914px){html body[for=html-export]:not([data-presentation-mode]) .markdown-preview{padding:2em calc(50% - 457px + 2em)}}@media screen and (max-width:914px){html body[for=html-export]:not([data-presentation-mode]) .markdown-preview{padding:2em}}@media screen and (max-width:450px){html body[for=html-export]:not([data-presentation-mode]) .markdown-preview{font-size:14px!important;padding:1em}}@media print{html body[for=html-export]:not([data-presentation-mode]) #sidebar-toc-btn{display:none}}html body[for=html-export]:not([data-presentation-mode]) #sidebar-toc-btn{position:fixed;bottom:8px;left:8px;font-size:28px;cursor:pointer;color:inherit;z-index:99;width:32px;text-align:center;opacity:.4}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] #sidebar-toc-btn{opacity:1}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc{position:fixed;top:0;left:0;width:300px;height:100%;padding:32px 0 48px 0;font-size:14px;box-shadow:0 0 4px rgba(150,150,150,.33);box-sizing:border-box;overflow:auto;background-color:inherit}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc::-webkit-scrollbar{width:8px}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc::-webkit-scrollbar-track{border-radius:10px;background-color:transparent}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc::-webkit-scrollbar-thumb{border-radius:5px;background-color:rgba(150,150,150,.66);border:4px solid rgba(150,150,150,.66);background-clip:content-box}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc a{text-decoration:none}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc .md-toc{padding:0 16px}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc .md-toc .md-toc-link-wrapper .md-toc-link{display:inline;padding:.25rem 0}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc .md-toc .md-toc-link-wrapper .md-toc-link div,html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc .md-toc .md-toc-link-wrapper .md-toc-link p{display:inline}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc .md-toc .md-toc-link-wrapper.highlighted .md-toc-link{font-weight:800}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .markdown-preview{left:300px;width:calc(100% - 300px);padding:2em calc(50% - 457px - 300px / 2);margin:0;box-sizing:border-box}@media screen and (max-width:1274px){html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .markdown-preview{padding:2em}}@media screen and (max-width:450px){html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .markdown-preview{width:100%}}html body[for=html-export]:not([data-presentation-mode]):not([html-show-sidebar-toc]) .markdown-preview{left:50%;transform:translateX(-50%)}html body[for=html-export]:not([data-presentation-mode]):not([html-show-sidebar-toc]) .md-sidebar-toc{display:none}
+/* Please visit the URL below for more information: */
+/*   https://shd101wyy.github.io/markdown-preview-enhanced/#/customize-css */
+
+      </style>
+      <!-- The content below will be included at the end of the <head> element. --><script type="text/javascript">
+  document.addEventListener("DOMContentLoaded", function () {
+    // your code here
+  });
+</script></head><body for="html-export">
+    
+    
+      <div class="crossnote markdown-preview  ">
+      
+<p><strong>this document studies asteroid–comet impacts on earth by looking at each object type and the effects it may cause, depending on its effect possible parameters</strong></p>
+<h3 id="the-parameters-that-are-taken-in-consideration-to-create-an-impact-the-inputs"><strong>the parameters that are taken in consideration to create an impact (the inputs):</strong> </h3>
+<p><em>Diameter</em><br>
+<em>Density (ρ) → gives mass</em><br>
+<em>Velocity (v)</em><br>
+<em>Impact angle (θ)</em><br>
+<em>Impact location (land vs ocean)</em></p>
+<p><strong>Note:</strong> While asteroids are typically rocky or metallic and comets are icy and more porous, both follow the same physical framework. The differences appear only in their <strong>density (ρ)</strong>, <strong>velocity (v)</strong>, and <strong>coupling efficiency</strong>, but once we calculate the delivered energy <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>E</mi><mtext>imp</mtext></msub></mrow><annotation encoding="application/x-tex">E_{\text{imp}}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.9694em;vertical-align:-0.2861em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.05764em;">E</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3175em;"><span style="top:-2.55em;margin-left:-0.0576em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord text mtight"><span class="mord mtight">imp</span></span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2861em;"><span></span></span></span></span></span></span></span></span></span>, the resulting consequences fall into the same destruction ranges.</p>
+<h3 id="generale-workflow-of-the-study"><em><strong>generale workflow of the study</strong></em> </h3>
+<p>-&gt;first, the <strong>impact energy</strong> :master variable that sets the scale for the initial explostion, crater size, ...(potential for all othher effects)  and the range of impact (e.g., Local, Continental, Global, Mass Extinction)<br>
+-&gt; then the <em><strong>diameter</strong></em> : to understand the dimention of the object that transfering this energy so it consequenses<br>
+-&gt;the study of the <em><strong>strike angle</strong></em> determine the efficiency and directionality of energy and material distribution<br>
+-&gt;at then end the <em><strong>place where it hit</strong></em>: effect on land / ocean</p>
+<h3 id="framework-for-asteroid-impact-simulation-and-visualisation"><em><strong>framework for asteroid impact, simulation and visualisation</strong></em> </h3>
+<h3 id="1-energyimpact-energy-"><strong>1-energy(impact energy )</strong> </h3>
+<p><strong>origines of impact energy</strong><br>
+the effective impact energy — the one that combines all parameters (size, density, velocity, impact angle, and target) and directly tells us how much energy is delivered to the ground. That’s the one used in impact cratering theory.</p>
+<h2 id="impact-energy">Impact Energy </h2>
+<h3 id="asteroid">Asteroid: </h3>
+<p>The impact energy is the effective energy delivered to the surface by an <strong>asteroid or comet</strong>, after accounting for impact angle and coupling efficiency.</p>
+<p><span class="katex-display"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><msub><mi>E</mi><mtext>imp</mtext></msub><mo>=</mo><mstyle displaystyle="false" scriptlevel="0"><mfrac><mn>1</mn><mn>2</mn></mfrac></mstyle><mtext> </mtext><msub><mi>ρ</mi><mtext>imp</mtext></msub><mtext> </mtext><mstyle displaystyle="false" scriptlevel="0"><mfrac><mn>4</mn><mn>3</mn></mfrac></mstyle><mi>π</mi><msup><mrow><mo fence="true">(</mo><mstyle displaystyle="false" scriptlevel="0"><mfrac><mi>D</mi><mn>2</mn></mfrac></mstyle><mo fence="true">)</mo></mrow><mn>3</mn></msup><msup><mi>v</mi><mn>2</mn></msup><mtext> </mtext><mi>sin</mi><mo>⁡</mo><mi>θ</mi><mtext> </mtext><msub><mi>η</mi><mtext>coupling</mtext></msub></mrow><annotation encoding="application/x-tex">E_{\text{imp}}=\tfrac{1}{2}\,\rho_{\text{imp}} \,\tfrac{4}{3}\pi \left(\tfrac{D}{2}\right)^3 v^2 \,\sin\theta \,\eta_{\text{coupling}}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.9694em;vertical-align:-0.2861em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.05764em;">E</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3175em;"><span style="top:-2.55em;margin-left:-0.0576em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord text mtight"><span class="mord mtight">imp</span></span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2861em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:1.4263em;vertical-align:-0.35em;"></span><span class="mord"><span class="mopen nulldelimiter"></span><span class="mfrac"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.8451em;"><span style="top:-2.655em;"><span class="pstrut" style="height:3em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight">2</span></span></span></span><span style="top:-3.23em;"><span class="pstrut" style="height:3em;"></span><span class="frac-line" style="border-bottom-width:0.04em;"></span></span><span style="top:-3.394em;"><span class="pstrut" style="height:3em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight">1</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.345em;"><span></span></span></span></span></span><span class="mclose nulldelimiter"></span></span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord"><span class="mord mathnormal">ρ</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3175em;"><span style="top:-2.55em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord text mtight"><span class="mord mtight">imp</span></span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2861em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord"><span class="mopen nulldelimiter"></span><span class="mfrac"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.8451em;"><span style="top:-2.655em;"><span class="pstrut" style="height:3em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight">3</span></span></span></span><span style="top:-3.23em;"><span class="pstrut" style="height:3em;"></span><span class="frac-line" style="border-bottom-width:0.04em;"></span></span><span style="top:-3.394em;"><span class="pstrut" style="height:3em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight">4</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.345em;"><span></span></span></span></span></span><span class="mclose nulldelimiter"></span></span><span class="mord mathnormal" style="margin-right:0.03588em;">π</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="minner"><span class="minner"><span class="mopen delimcenter" style="top:0em;"><span class="delimsizing size1">(</span></span><span class="mord"><span class="mopen nulldelimiter"></span><span class="mfrac"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.8723em;"><span style="top:-2.655em;"><span class="pstrut" style="height:3em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight">2</span></span></span></span><span style="top:-3.23em;"><span class="pstrut" style="height:3em;"></span><span class="frac-line" style="border-bottom-width:0.04em;"></span></span><span style="top:-3.394em;"><span class="pstrut" style="height:3em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right:0.02778em;">D</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.345em;"><span></span></span></span></span></span><span class="mclose nulldelimiter"></span></span><span class="mclose delimcenter" style="top:0em;"><span class="delimsizing size1">)</span></span></span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:1.0763em;"><span style="top:-3.3252em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight">3</span></span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.03588em;">v</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.8641em;"><span style="top:-3.113em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight">2</span></span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mop">sin</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord mathnormal" style="margin-right:0.02778em;">θ</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.03588em;">η</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3361em;"><span style="top:-2.55em;margin-left:-0.0359em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord text mtight"><span class="mord mtight">coupling</span></span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2861em;"><span></span></span></span></span></span></span></span></span></span></span></p>
+<p>Where:</p>
+<ul>
+<li><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>D</mi></mrow><annotation encoding="application/x-tex">D</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6833em;"></span><span class="mord mathnormal" style="margin-right:0.02778em;">D</span></span></span></span> = impactor diameter (m)</li>
+<li><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>ρ</mi><mtext>imp</mtext></msub></mrow><annotation encoding="application/x-tex">\rho_{\text{imp}}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.7167em;vertical-align:-0.2861em;"></span><span class="mord"><span class="mord mathnormal">ρ</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3175em;"><span style="top:-2.55em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord text mtight"><span class="mord mtight">imp</span></span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2861em;"><span></span></span></span></span></span></span></span></span></span> = impactor density (kg/m³)</li>
+<li><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>v</mi></mrow><annotation encoding="application/x-tex">v</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.4306em;"></span><span class="mord mathnormal" style="margin-right:0.03588em;">v</span></span></span></span> = velocity at impact (m/s)</li>
+<li><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>θ</mi></mrow><annotation encoding="application/x-tex">\theta</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6944em;"></span><span class="mord mathnormal" style="margin-right:0.02778em;">θ</span></span></span></span> = impact angle from horizontal (rad or deg)</li>
+<li><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>η</mi><mtext>coupling</mtext></msub></mrow><annotation encoding="application/x-tex">\eta_{\text{coupling}}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.7167em;vertical-align:-0.2861em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.03588em;">η</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3361em;"><span style="top:-2.55em;margin-left:-0.0359em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord text mtight"><span class="mord mtight">coupling</span></span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2861em;"><span></span></span></span></span></span></span></span></span></span> = coupling efficiency
+<ul>
+<li><strong>Metallic (M-type):</strong> 0.8–1.0</li>
+<li><strong>Stony (S-type):</strong> 0.3–0.6</li>
+<li><strong>Carbonaceous (C-type)</strong>: 0.1–0.3</li>
+<li><strong>Comet (icy/porous): 0.05–0.3 (density ~500–1000 kg/m³)</strong></li>
+</ul>
+</li>
+</ul>
+<p>This value, <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>E</mi><mtext>imp</mtext></msub></mrow><annotation encoding="application/x-tex">E_{\text{imp}}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.9694em;vertical-align:-0.2861em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.05764em;">E</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3175em;"><span style="top:-2.55em;margin-left:-0.0576em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord text mtight"><span class="mord mtight">imp</span></span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2861em;"><span></span></span></span></span></span></span></span></span></span>, represents the true energy budget that drives <strong>all observable consequences</strong> of an impact: crater excavation, blast overpressure, thermal radiation, ejecta, seismic waves, and (if ocean impact) tsunamis.</p>
+<h2 id="input-parameter-ranges">Input Parameter Ranges </h2>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Possible Range / Typical Values</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Diameter (D)</strong></td>
+<td>10 m → 100 m (small, often burn in atmosphere) <br> 100 m → 1 km (regional hazard) <br> 1 km → 10 km (global hazard) <br> &gt;10 km (planet-scale impact)</td>
+</tr>
+<tr>
+<td><strong>Density (ρ_imp)</strong></td>
+<td>Metallic: 7000–8000 kg/m³ <br> Stony: 2500–3500 kg/m³ <br> Carbonaceous: 1500–2500 kg/m³ <br> Cometary (icy/porous): 500–1000 kg/m³</td>
+</tr>
+<tr>
+<td><strong>Velocity (v)</strong></td>
+<td>Minimum: ~11–12 km/s <br> Common: 15–25 km/s <br> Maximum: up to 72 km/s (cometary)</td>
+</tr>
+<tr>
+<td><strong>Impact Angle (θ)</strong></td>
+<td>Shallow: 15°–30° <br> Typical: ~45° (most probable) <br> Steep: 60°–90°</td>
+</tr>
+<tr>
+<td><strong>Coupling Efficiency (η_coupling)</strong></td>
+<td>Metallic: 0.8–1.0 <br> Stony: 0.3–0.6 <br> Carbonaceous: 0.1–0.3 <br> Cometary: 0.05–0.3</td>
+</tr>
+</tbody>
+</table>
+<h2 id="comet-">Comet : </h2>
+<p>For comets (icy, porous bodies), the effective impact energy can be approximated without an explicit coupling factor.<br>
+The low density (500–1000 kg/m³) already reduces the delivered energy compared to asteroids.</p>
+<p><span class="katex-display"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><msub><mi>E</mi><mtext>imp,&nbsp;comet</mtext></msub><mo>=</mo><mstyle displaystyle="false" scriptlevel="0"><mfrac><mn>1</mn><mn>2</mn></mfrac></mstyle><msub><mi>ρ</mi><mtext>comet</mtext></msub><mtext> </mtext><mfrac><mn>4</mn><mn>3</mn></mfrac><mi>π</mi><msup><mrow><mo fence="true">(</mo><mfrac><mi>D</mi><mn>2</mn></mfrac><mo fence="true">)</mo></mrow><mn>3</mn></msup><msup><mi>v</mi><mn>2</mn></msup><mi>sin</mi><mo>⁡</mo><mi>θ</mi></mrow><annotation encoding="application/x-tex">E_{\text{imp, comet}} = \tfrac{1}{2} \rho_{\text{comet}} \, \frac{4}{3}\pi \left(\frac{D}{2}\right)^3 v^2 \sin\theta</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.9694em;vertical-align:-0.2861em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.05764em;">E</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3175em;"><span style="top:-2.55em;margin-left:-0.0576em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord text mtight"><span class="mord mtight">imp,&nbsp;comet</span></span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2861em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:2.604em;vertical-align:-0.95em;"></span><span class="mord"><span class="mopen nulldelimiter"></span><span class="mfrac"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.8451em;"><span style="top:-2.655em;"><span class="pstrut" style="height:3em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight">2</span></span></span></span><span style="top:-3.23em;"><span class="pstrut" style="height:3em;"></span><span class="frac-line" style="border-bottom-width:0.04em;"></span></span><span style="top:-3.394em;"><span class="pstrut" style="height:3em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight">1</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.345em;"><span></span></span></span></span></span><span class="mclose nulldelimiter"></span></span><span class="mord"><span class="mord mathnormal">ρ</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.2806em;"><span style="top:-2.55em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord text mtight"><span class="mord mtight">comet</span></span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord"><span class="mopen nulldelimiter"></span><span class="mfrac"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:1.3214em;"><span style="top:-2.314em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord">3</span></span></span><span style="top:-3.23em;"><span class="pstrut" style="height:3em;"></span><span class="frac-line" style="border-bottom-width:0.04em;"></span></span><span style="top:-3.677em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord">4</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.686em;"><span></span></span></span></span></span><span class="mclose nulldelimiter"></span></span><span class="mord mathnormal" style="margin-right:0.03588em;">π</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="minner"><span class="minner"><span class="mopen delimcenter" style="top:0em;"><span class="delimsizing size3">(</span></span><span class="mord"><span class="mopen nulldelimiter"></span><span class="mfrac"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:1.3603em;"><span style="top:-2.314em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord">2</span></span></span><span style="top:-3.23em;"><span class="pstrut" style="height:3em;"></span><span class="frac-line" style="border-bottom-width:0.04em;"></span></span><span style="top:-3.677em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.02778em;">D</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.686em;"><span></span></span></span></span></span><span class="mclose nulldelimiter"></span></span><span class="mclose delimcenter" style="top:0em;"><span class="delimsizing size3">)</span></span></span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:1.654em;"><span style="top:-3.9029em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight">3</span></span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.03588em;">v</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.8641em;"><span style="top:-3.113em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight">2</span></span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mop">sin</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord mathnormal" style="margin-right:0.02778em;">θ</span></span></span></span></span></p>
+<p>Where:</p>
+<ul>
+<li><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>D</mi></mrow><annotation encoding="application/x-tex">D</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6833em;"></span><span class="mord mathnormal" style="margin-right:0.02778em;">D</span></span></span></span> = comet diameter (m)</li>
+<li><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>ρ</mi><mtext>comet</mtext></msub><mo>≈</mo><mn>500</mn><mtext>–</mtext><mn>1000</mn><mtext> </mtext><msup><mtext>kg/m</mtext><mn>3</mn></msup></mrow><annotation encoding="application/x-tex">\rho_{\text{comet}} \approx 500\text{–}1000 \,\text{kg/m}^3</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6776em;vertical-align:-0.1944em;"></span><span class="mord"><span class="mord mathnormal">ρ</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.2806em;"><span style="top:-2.55em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord text mtight"><span class="mord mtight">comet</span></span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">≈</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:1.204em;vertical-align:-0.25em;"></span><span class="mord">500</span><span class="mord text"><span class="mord">–</span></span><span class="mord">1000</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord"><span class="mord text"><span class="mord">kg/m</span></span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.954em;"><span style="top:-3.2029em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight">3</span></span></span></span></span></span></span></span></span></span></span></li>
+<li><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>v</mi></mrow><annotation encoding="application/x-tex">v</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.4306em;"></span><span class="mord mathnormal" style="margin-right:0.03588em;">v</span></span></span></span> = velocity at impact (m/s), often <strong>faster</strong> than asteroids (20–72 km/s typical)</li>
+<li><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>θ</mi></mrow><annotation encoding="application/x-tex">\theta</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6944em;"></span><span class="mord mathnormal" style="margin-right:0.02778em;">θ</span></span></span></span> = impact angle from horizontal (rad or deg)</li>
+</ul>
+<h1></h1>
+<h4 id="input-parameter-ranges-for-comets">Input Parameter Ranges for Comets </h4>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Possible Range / Typical Values</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Diameter (D)</strong></td>
+<td>100 m → 1 km (regional hazard) <br> 1 km → 10 km (global hazard) <br> &gt;10 km (planet-scale)</td>
+</tr>
+<tr>
+<td><strong>Density (ρ_comet)</strong></td>
+<td>500–1000 kg/m³ (icy/porous)</td>
+</tr>
+<tr>
+<td><strong>Velocity (v)</strong></td>
+<td>Common: 20–40 km/s <br> Maximum: up to 72 km/s</td>
+</tr>
+<tr>
+<td><strong>Impact Angle (θ)</strong></td>
+<td>Shallow: 15°–30° <br> Typical: ~45° <br> Steep: 60°–90°</td>
+</tr>
+</tbody>
+</table>
+<h2 id="ranging-distribution">Ranging Distribution </h2>
+<p>whole spectrum: from asteroids-comets that survive the atmosphere and just make local / regional impacts up to planet-scale collisions (the only ones that can truly re-shape Earth’s spin/orbit).</p>
+<h2 id="impact-energy-ranges">Impact Energy Ranges </h2>
+<p>Here are the main ranges of final impact energy <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>E</mi><mtext>imp</mtext></msub></mrow><annotation encoding="application/x-tex">E_{\text{imp}}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.9694em;vertical-align:-0.2861em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.05764em;">E</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3175em;"><span style="top:-2.55em;margin-left:-0.0576em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord text mtight"><span class="mord mtight">imp</span></span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2861em;"><span></span></span></span></span></span></span></span></span></span> and the corresponding scale of destruction:</p>
+<table>
+<thead>
+<tr>
+<th><strong>Impact Energy Range</strong></th>
+<th><strong>Level of Destruction</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>10¹⁴ – 10¹⁶ J (≈ 0.02 – 2 Mt TNT)</strong></td>
+<td>Local: destruction limited to a city or metropolitan area</td>
+</tr>
+<tr>
+<td><strong>10¹⁶ – 10¹⁸ J (≈ 2 – 200 Mt TNT)</strong></td>
+<td>Regional: devastation across a region or small country</td>
+</tr>
+<tr>
+<td><strong>10¹⁸ – 10²⁰ J (≈ 200 – 20,000 Mt TNT)</strong></td>
+<td>Continental: destruction across entire countries or multiple regions</td>
+</tr>
+<tr>
+<td><strong>10²⁰ – 10²² J (≈ 20,000 – 2,000,000 Mt TNT)</strong></td>
+<td>Global: worldwide climate disruption, possible mass extinction</td>
+</tr>
+<tr>
+<td><strong>&gt; 10²² J (&gt; 2 million Mt TNT)</strong></td>
+<td>Planetary: Earth-wide catastrophe, potential tilt/orbit changes</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<hr>
+<h2 id="effect-of-impact-angle-on-impacts">Effect of Impact Angle on Impacts </h2>
+<p>The angle of impact (measured from the horizontal) affects both the <strong>efficiency</strong> of energy transfer into the ground and the <strong>distribution</strong> of destructive effects.<br>
+Although the impact energy formula already includes the angle through the sinθ term (which reduces the total effective energy), the <strong>pattern of damage</strong> on the surface also changes significantly.</p>
+<h3 id="steep-impact-6090">Steep Impact (60°–90°) </h3>
+<ul>
+<li><strong>Energy coupling</strong>: maximum; almost all of the asteroid’s energy reaches the ground.</li>
+<li><strong>Crater</strong>: circular, symmetric ejecta blanket.</li>
+<li><strong>Blast &amp; thermal</strong>: concentric and symmetric rings.</li>
+<li><strong>Interpretation</strong>: most intense local destruction.</li>
+</ul>
+<h3 id="moderate-impact-3060">Moderate Impact (30°–60°) </h3>
+<ul>
+<li><strong>Most common</strong> impact angle range.</li>
+<li><strong>Energy coupling</strong>: high, only slightly reduced compared to vertical.</li>
+<li><strong>Crater</strong>: almost circular, small asymmetry in ejecta.</li>
+<li><strong>Blast &amp; thermal</strong>: nearly symmetric.</li>
+<li><strong>Interpretation</strong>: usually taken as the <strong>reference scenario</strong> in studies.</li>
+</ul>
+<h3 id="shallow-impact-1530">Shallow Impact (15°–30°) </h3>
+<ul>
+<li><strong>Energy coupling</strong>: reduced; part of the energy dissipates in the atmosphere.</li>
+<li><strong>Crater</strong>: smaller, often elongated; ejecta focused <strong>downrange</strong>.</li>
+<li><strong>Blast &amp; thermal</strong>: elongated footprint, with stronger effects <strong>downrange</strong>.</li>
+<li><strong>Extreme case</strong>: if angle &lt;15°, the asteroid may <strong>skip</strong> the atmosphere instead of striking the ground.</li>
+</ul>
+<hr>
+<hr>
+<h2></h2>
+<h2 id="possible-impact-according-to-the-ranges">Possible impact according to the ranges </h2>
+<h2 id="-1"></h2>
+<h2 id="-2"></h2>
+<h2 id="range-a--citymetropolitan-scale"><strong>Range A — (City/Metropolitan Scale)</strong> </h2>
+<hr>
+<p><strong>Scope (Comets):</strong> Minimal comet impacts behave similarly, but comets are structurally weaker and more volatile. They are much more likely to fragment in the atmosphere, producing Tunguska-like <strong>airbursts</strong> with no crater but still causing severe blast and thermal damage over a city-sized area.</p>
+<blockquote>
+<p>conclusion: comets from this range doesnt have any impact at all</p>
+</blockquote>
+<hr>
+<p><strong>Scope (Asteroids):</strong> Minimal asteroid impacts. This is the smallest possible range of asteroids capable of reaching Earth’s surface without fully burning up in the atmosphere. Effects are limited to city scale, usually as an airburst shockwave or a very small crater, while smaller objects below this threshold disintegrate harmlessly before impact.</p>
+<h3 id="1--blast-overpressure-peak-δp-at-ground"><strong>1- Blast Overpressure (Peak ΔP at ground)</strong> </h3>
+<ul>
+<li><strong>The Analogy:</strong> The shockwave from a gigantic explosion. This is the force that physically knocks down buildings and trees.</li>
+<li><strong>Technical Specification:</strong> This is the peak overpressure in kilopascals (kPa) or pounds per square inch (psi) at ground level.
+<ul>
+<li><strong>100 kPa (~14.5 psi):</strong> <strong>Severe Structural Damage.</strong> Near-total building collapse. Radius: <strong>0.5–1.5 km</strong>.</li>
+<li><strong>35 kPa (~5 psi):</strong> <strong>Heavy Damage.</strong> Collapse of wood-frame buildings; serious injury threshold. Radius: <strong>1–3 km</strong>.</li>
+<li><strong>10 kPa (~1.5 psi):</strong> <strong>Light Damage.</strong> Widespread glass breakage. Radius: <strong>5–15 km</strong>.</li>
+</ul>
+</li>
+</ul>
+<h3 id="2--thermal-radiation-integrated-fluence-at-ground"><strong>2- Thermal Radiation (Integrated fluence at ground)</strong> </h3>
+<ul>
+<li><strong>The Analogy:</strong> The intense heat flash from a nuclear detonation. It instantly ignites materials and causes catastrophic burns.</li>
+<li><strong>Technical Specification:</strong> This is the total radiant energy deposited per unit area in kilojoules per square meter (kJ/m²).
+<ul>
+<li><strong>100 kJ/m²:</strong> <strong>Robust Ignition.</strong> Spontaneous ignition of wood, fabrics, and vegetation. Radius: <strong>~1–2 km</strong>.</li>
+<li><strong>20 kJ/m²:</strong> <strong>3rd-Degree Burns &amp; Fires.</strong> &gt;99% probability of severe burns; ignition of thin fuels. Radius: <strong>~1–3 km</strong>.</li>
+<li><strong>2-10 kJ/m²:</strong> <strong>Painful Burns &amp; Spot Fires.</strong> 2nd-degree burns; ignition of easily flammable materials. Radius: <strong>~5–10 km</strong>.</li>
+</ul>
+</li>
+</ul>
+<h3 id="3--cratering-if-ground-strike-occurs"><strong>3- Cratering (if ground strike occurs)</strong> </h3>
+<ul>
+<li><strong>The Analogy:</strong> A large open-pit mine or a small reservoir suddenly appearing. This is the permanent scar of the impact.</li>
+<li><strong>Technical Specification:</strong> The final crater dimensions and ejecta blanket distribution.
+<ul>
+<li><strong>Final Diameter:</strong> <strong>150–600 m</strong> (upper outlier to ~800 m).</li>
+<li><strong>Depth:</strong> <strong>10–70 m</strong> (typically a 1:4 to 1:10 depth-to-diameter ratio).</li>
+<li><strong>Ejecta Thickness:</strong> Decays rapidly from <strong>tens of cm</strong> at the rim to <strong>mere mm</strong> by <strong>~2 km</strong> distance.</li>
+</ul>
+</li>
+</ul>
+<h3 id="4--seismic-equivalent"><strong>4- Seismic Equivalent</strong> </h3>
+<ul>
+<li><strong>The Analogy:</strong> A noticeable, damaging earthquake centered directly on the impact point.</li>
+<li><strong>Technical Specification:</strong> The energy is expressed as a moment magnitude (Mw) and the shaking is described on the Modified Mercalli Intensity (MMI) scale.
+<ul>
+<li><strong>Moment Magnitude (Mw):</strong> <strong>~4.0–5.5</strong> near source.</li>
+<li><strong>Intensity (MMI):</strong> <strong>VI-VII</strong> within <strong>~5–15 km</strong>. This represents moderate to strong shaking: felt by all, furniture moves, and light damage occurs.</li>
+</ul>
+</li>
+</ul>
+<h3 id="5--ocean-impact--tsunami-if-over-water"><strong>5- Ocean Impact / Tsunami (if over water)</strong> </h3>
+<ul>
+<li><strong>The Analogy:</strong> A mega-tsunami generated by a sudden, massive displacement of water, like a submarine landslide.</li>
+<li><strong>Technical Specification:</strong> Wave height is highly dependent on water depth and distance from the impact.
+<ul>
+<li><strong>Near-field Wave Height</strong> (within 20–50 km): <strong>~5–20 m</strong>.</li>
+<li><strong>Coastal Run-up:</strong> Amplification upon hitting shorelines can easily exceed <strong>&gt;10 m</strong>.</li>
+<li><strong>Far-field Wave Height</strong> (a few hundred km away): Typically decays to <strong>≤0.5–1 m</strong> due to geometric spreading and energy dissipation.</li>
+</ul>
+</li>
+</ul>
+<h3 id="6--timing-of-effects"><strong>6- Timing of Effects</strong> </h3>
+<p>The sequence of events is critical for understanding the rapid onset of destruction. The initial thermal flash is instantaneous.</p>
+<ul>
+<li>
+<p><strong>Shock Front Arrival:</strong> The destructive blast wave travels at roughly the speed of sound (~340 m/s). For the radii in this range:</p>
+<ul>
+<li>At the <strong>glass breakage radius (5–15 km):</strong> Arrives <strong>~15–45 seconds</strong> after the flash.</li>
+<li>At the <strong>heavy damage radius (1–3 km):</strong> Arrives <strong>~3–9 seconds</strong> after the flash.</li>
+<li>At the <strong>severe damage radius (0.5–1.5 km):</strong> Arrives <strong>~1–4 seconds</strong> after the flash.</li>
+</ul>
+</li>
+<li>
+<p><strong>Ejecta Arrival:</strong> The fallout of coarse debris follows ballistic trajectories.</p>
+<ul>
+<li>Widespread coarse ejecta arrives within <strong>~10 to 75 seconds</strong> after the impact across the affected area.</li>
+</ul>
+</li>
+<li>
+<p><strong>Seismic Shaking:</strong> Felt almost instantly (within <strong>1-3 seconds</strong>) across the entire zone due to the high speed of seismic waves.</p>
+</li>
+</ul>
+<h3 id="impact-angle-effects">Impact Angle Effects </h3>
+<p><strong>impact consequences vary by angle while maintaining the same energy scale:</strong></p>
+<ul>
+<li><strong>Steep Angles (60°-90°):</strong> Maximum energy transfer creates symmetric circular damage patterns</li>
+<li><strong>Moderate Angles (30°-60°):</strong> Balanced energy distribution with nearly circular effects</li>
+<li><strong>Shallow Angles (15°-30°):</strong> Reduced ground energy creates elongated damage corridors</li>
+</ul>
+<p><strong>Examples:</strong></p>
+<ul>
+<li><em>Blast Zone:</em> Circular → Slightly oval → Elongated corridor</li>
+<li><em>Crater Shape:</em> Perfect circle → Nearly circular → Oval elongated downrange</li>
+<li><em>Damage Distribution:</em> Equal all around → Minimal directionality → Focused downrange</li>
+</ul>
+<h3 id="famous-small-impactorsairbursts">Famous small impactors/airbursts: </h3>
+<ul>
+<li>
+<p><strong>Chelyabinsk (Asteroid, 2013, Russia)</strong> — ~20 m stony body; <strong>mid-air explosion</strong> ~30 km up; shockwave shattered windows and injured ~1,500 people. <em>Outcome like yours: powerful airburst, no crater, major local damage.</em></p>
+</li>
+<li>
+<p><strong>Sikhote-Alin (Asteroid, 1947, Russia)</strong> — iron <strong>meteorite fall</strong>; fragmented in flight; produced a <strong>strewn field</strong> and numerous small craters in taiga. <em>Outcome like yours: fragment shower + many small ground strikes.</em></p>
+</li>
+<li>
+<p><strong>Carancas (Asteroid, 2007, Peru)</strong> — small <strong>stony</strong> body that <strong>survived to ground</strong>; made a ~13.5 m crater and local shock/steam effects. <em>Outcome like yours: small crater + very localized destruction.</em></p>
+</li>
+</ul>
+<p><em>Comet analogues (Range A tends to airburst):</em></p>
+<ul>
+<li><strong>Tunguska (Probable comet/fragile body, 1908, Siberia)</strong> — <strong>airburst</strong> leveled ~2,150 km² of forest; <strong>no crater</strong>. <em>Outcome like yours: huge blast, forest-to-city-scale devastation, no crater.</em></li>
+<li><strong>Hypothetical small comet fragment</strong> — fragile, icy nucleus; likely <strong>disintegrates aloft</strong>. <em>Outcome like yours: bright flash + shockwave, minimal crater chance.</em></li>
+<li><strong>Short-period comet splinter (generic)</strong> — similar to above; <strong>airburst-dominant</strong> behavior.</li>
+</ul>
+<h1></h1>
+<hr>
+<p><strong>Note:</strong> Starting from <strong>Range B (Regional scale)</strong> and continuing through <strong>Range C (Continental scale)</strong> and <strong>Range D (Global/Planetary scale)</strong>, the consequences of asteroid and comet impacts are essentially the same. At these higher energies, both types of bodies penetrate the atmosphere and deliver their energy to the surface, producing identical categories of effects: cratering, blast waves, thermal radiation, seismic shaking, tsunamis, and large-scale atmospheric disruption. The only meaningful difference remains in the smallest impacts (Range A), where comets are more likely to fragment in the atmosphere.</p>
+<hr>
+<blockquote></blockquote>
+<h1></h1>
+<h2 id="range-b---regional-scale">Range B - (Regional Scale) </h2>
+<p><strong>Scope:</strong> Regional impacts. This energy range produces the same categories of effects as a smaller (city-scale) impact,(range A) but with dramatically increased intensity and geographic scale. The devastation can encompass an entire region or small country.</p>
+<h3 id="blast-overpressure-scaled-up-from-city-level"><strong>Blast Overpressure</strong> <em>(Scaled up from city-level)</em> </h3>
+<ul>
+<li><strong>100 kPa (Total Destruction):</strong> Radius expands to <strong>2–5 km</strong>. Reinforced concrete buildings collapse.</li>
+<li><strong>35 kPa (Heavy Damage):</strong> Radius expands to <strong>5–15 km</strong>. Widespread structural failure and tree blowdown.</li>
+<li><strong>10 kPa (Glass Breakage):</strong> Radius expands to <strong>15–40 km</strong>. Universal window breakage and light damage.</li>
+</ul>
+<h1></h1>
+<h3 id="thermal-radiation-scaled-up-from-city-level"><strong>Thermal Radiation</strong> <em>(Scaled up from city-level)</em> </h3>
+<ul>
+<li><strong>100 kJ/m² (Spontaneous Ignition):</strong> Radius expands to <strong>2–4 km</strong>. Near-instant ignition of all combustibles.</li>
+<li><strong>20 kJ/m² (3rd-Degree Burns):</strong> Radius expands to <strong>10–20 km</strong>. Causes severe burns and ignites wildfires.</li>
+<li><strong>2-10 kJ/m² (Painful Burns):</strong> Radius expands to <strong>20–50 km</strong>. Causes secondary burns and spot fires over a vast area.</li>
+</ul>
+<h1></h1>
+<h3 id="crater-formation-if-ground-strike-scaled-up-from-city-level"><strong>Crater Formation</strong> <em>(if ground strike; scaled up from city-level)</em> </h3>
+<ul>
+<li><strong>Final Diameter:</strong> <strong>1–5 km</strong> (previously 150–600 m).</li>
+<li><strong>Depth:</strong> <strong>100–500 m</strong> (previously 10–70 m).</li>
+<li><strong>Ejecta Blanket:</strong> Debris is several meters thick at the rim (previously tens of cm), burying the immediate landscape.</li>
+</ul>
+<h1></h1>
+<h3 id="seismic-effects-scaled-up-from-city-level"><strong>Seismic Effects</strong> <em>(Scaled up from city-level)</em> </h3>
+<ul>
+<li><strong>Equivalent Magnitude:</strong> <strong>Mw ~6.0–7.0</strong> (previously Mw ~4.0–5.5).</li>
+<li><strong>Shaking Intensity:</strong> <strong>MMI VII–VIII</strong> (severe) within <strong>~50–100 km</strong> (previously within ~5–15 km). Capable of triggering regional landslides.</li>
+</ul>
+<h1></h1>
+<h3 id="ocean-impact--tsunami-if-over-water-scaled-up-from-city-level"><strong>Ocean Impact / Tsunami</strong> <em>(if over water; scaled up from city-level)</em> </h3>
+<ul>
+<li><strong>Near-field Wave Height:</strong> <strong>50–100 m</strong> (previously 5–20 m) within <strong>50–100 km</strong>.</li>
+<li><strong>Coastal Run-up:</strong> <strong>&gt;50 m</strong> possible (previously &gt;10 m), causing catastrophic coastal flooding.</li>
+<li><strong>Far-field Waves:</strong> <strong>5–10 m</strong> (previously ≤0.5–1 m), representing a major trans-oceanic hazard.</li>
+</ul>
+<h1></h1>
+<h3 id="atmospheric--environmental-effects-new-for-this-scale"><strong>Atmospheric / Environmental Effects</strong> <em>(New for this scale)</em> </h3>
+<ul>
+<li><strong>Dust &amp; Aerosols:</strong> Significant material is injected into the stratosphere, a phenomenon not seen at lower energies.</li>
+<li><strong>Regional Climate Effects:</strong> Can cause short-term regional cooling, darkness, and potential acid rain, extending the disaster beyond the immediate blast zone.</li>
+</ul>
+<h1></h1>
+<h3 id="timing-of-effects-scaled-up-from-city-level"><strong>Timing of Effects</strong> <em>(Scaled up from city-level)</em> </h3>
+<ul>
+<li>
+<p><strong>Shock Front Arrival:</strong> The destructive blast wave travels at roughly the speed of sound (~340 m/s). For the larger radii in this range:</p>
+<ul>
+<li>At the <strong>glass breakage radius (15–40 km):</strong> Arrives <strong>~45–120 seconds</strong> after the flash.</li>
+<li>At the <strong>heavy damage radius (5–15 km):</strong> Arrives <strong>~15–45 seconds</strong> after the flash.</li>
+<li>At the <strong>total destruction radius (2–5 km):</strong> Arrives <strong>~6–15 seconds</strong> after the flash.</li>
+</ul>
+</li>
+<li>
+<p><strong>Ejecta Arrival:</strong> The fallout of coarse debris follows ballistic trajectories.</p>
+<ul>
+<li>Widespread coarse ejecta arrives within <strong>~1 to 4 minutes</strong> after the impact across the affected region.</li>
+</ul>
+</li>
+<li>
+<p><strong>Seismic Shaking:</strong> Felt almost instantly (within <strong>1-10 seconds</strong>) across the entire region due to the high speed of seismic waves.</p>
+</li>
+</ul>
+<h1></h1>
+<h3 id="impact-angle-effects-1">Impact Angle Effects </h3>
+<p><strong>impact consequences vary by angle while maintaining the same energy scale:</strong></p>
+<ul>
+<li><strong>Steep Angles (60°-90°):</strong> Maximum energy transfer creates symmetric circular regional devastation</li>
+<li><strong>Moderate Angles (30°-60°):</strong> Balanced energy distribution with nearly circular regional effects</li>
+<li><strong>Shallow Angles (15°-30°):</strong> Reduced ground energy creates elongated regional damage corridors</li>
+</ul>
+<h1></h1>
+<h2 id="famous-past-asteroid-impacts">Famous Past Asteroid Impacts </h2>
+<p>Based on real impact events and scientific data, here are 2 famous regionally-scaled asteroids that fit Range B:</p>
+<h3 id="asteroid-1">Asteroid: </h3>
+<h4 id="1--barringer-crater-impactor-arizona-usa">1- <strong>Barringer Crater Impactor</strong> (Arizona, USA) </h4>
+<ul>
+<li>Actual Event: Created Meteor Crater in Arizona</li>
+<li>Size: ~50 meter iron asteroid</li>
+<li>Slammed into the desert, instantly blasting out a crater so massive and perfectly round that it looks like a giant, permanent thumbprint on the Earth's surface.</li>
+<li>Anyone within miles would have been vaporized. Today, it's a stunning and humbling tourist attraction, a quiet desert landscape that hides a violent, instant creation story.</li>
+</ul>
+<h4 id="2--sikhote-alin-meteorite-russia-1947"><strong>2- Sikhote-Alin Meteorite (Russia, 1947)</strong> </h4>
+<ul>
+<li><strong>Actual Event:</strong> A massive iron meteorite impact in the Sikhote-Alin Mountains</li>
+<li><strong>Size:</strong> Estimated to be hundreds of tons before atmospheric entry</li>
+<li>Exploded in a spectacular airburst, creating a shower of thousands of metal fragments that scarred the landscape with over 100 craters.</li>
+<li>Eyewitnesses described a fireball brighter than the sun and a deafening series of explosions. The resulting "iron rain" left a vast field of extraterrestrial debris that is still collected by scientists and hunters today.</li>
+</ul>
+<h3 id="comets">Comets: </h3>
+<h4><strong>1- Tunguska Event Impactor (Siberia, 1908)</strong></h4>
+<ul>
+<li>Actual Event: 1908 Tunguska airburst over Siberia</li>
+<li>Size: ~60-80 meter stony asteroid</li>
+<li>Exploded in a massive airburst, flattening an entire forest the size of a major city. The force was so immense it knocked people off their feet hundreds of kilometers away.</li>
+<li>Witnesses saw a fireball brighter than the sun, followed by a heat wave that burned skin and a shockwave that shattered windows. For nights after, the sky glowed eerily across the world, sparking doomsday fears.</li>
+</ul>
+<h4 id="2--the-2002-eastern-mediterranean-event-not-named"><strong>2- The 2002 Eastern Mediterranean Event</strong> (not named) </h4>
+<ul>
+<li><strong>Actual Event:</strong> A large airburst detected over the Mediterranean Sea</li>
+<li><strong>Size:</strong> Estimated ~10 meter comet or asteroid</li>
+<li>Detonated high in the atmosphere with the energy of a nuclear bomb, releasing a powerful shockwave detected by satellites and seismic stations.</li>
+<li>The event occurred luckily over the open sea. Had it happened over a populated coastal city, it could have caused widespread destruction and mass panic, serving as a stark modern warning of the impact threat.</li>
+</ul>
+<hr>
+<hr>
+<h1></h1>
+<h2 id="range-c-continental-scale"><strong>Range C (Continental Scale)</strong> </h2>
+<p><strong>Scope:</strong> Continental impacts. This energy range represents a global catastrophe, with immediate effects devastating an area the size of a continent and secondary environmental effects threatening worldwide disruption. The energy release is equivalent to thousands to millions of the largest nuclear weapons.</p>
+<h3 id="1--blast-overpressure"><strong>1- Blast Overpressure</strong> </h3>
+<ul>
+<li><strong>100 kPa (~14.5 psi):</strong> radius <strong>10–20 km</strong> → complete destruction of all structures.</li>
+<li><strong>35 kPa (~5 psi):</strong> radius <strong>30–60 km</strong> → major urban areas leveled.</li>
+<li><strong>10 kPa (~1.5 psi):</strong> radius <strong>100–200 km</strong> → widespread glass break, structural damage.</li>
+<li><strong>Effect level:</strong> An entire <strong>nation-sized region</strong> is within destructive blast zones.</li>
+</ul>
+<h1></h1>
+<h3 id="2--thermal-radiation"><strong>2- Thermal Radiation</strong> </h3>
+<ul>
+<li><strong>100 kJ/m²:</strong> radius <strong>10–15 km</strong> → instant ignition of most fuels, unsurvivable burns.</li>
+<li><strong>20 kJ/m²:</strong> radius <strong>30–60 km</strong> → widespread fires, 3rd-degree burns to exposed people.</li>
+<li><strong>2–10 kJ/m²:</strong> radius <strong>100–200 km</strong> → ignition spots and mass casualties.</li>
+<li><strong>Effect level:</strong> <strong>Continental firestorms</strong> possible; entire forests and cities set alight.</li>
+</ul>
+<h1></h1>
+<h3 id="3--crater-formation-if-ground-strike"><strong>3- Crater Formation</strong> <em>(if ground strike)</em> </h3>
+<ul>
+<li><strong>Final diameter:</strong> <strong>5–20 km</strong>.</li>
+<li><strong>Depth:</strong> <strong>0.5–1.5 km</strong>.</li>
+<li><strong>Ejecta blanket:</strong>
+<ul>
+<li>Tens of m thick near rim.</li>
+<li>1–5 m thick within <strong>10–20 km</strong>.</li>
+<li><strong>cm-scale</strong> deposits out to <strong>hundreds of km</strong>.</li>
+</ul>
+</li>
+<li><strong>Effect level:</strong> Crater larger than major cities; ejecta fallout buries entire regions.</li>
+</ul>
+<h1></h1>
+<h3 id="4--seismic-effects"><strong>4- Seismic Effects</strong> </h3>
+<ul>
+<li>Equivalent earthquake magnitude: <strong>Mw ~7.0–8.0</strong>.</li>
+<li><strong>Intensity (MMI):</strong>
+<ul>
+<li><strong>VIII–IX</strong> (severe to violent) within <strong>100–300 km</strong>.</li>
+<li>Triggering of massive landslides and fault ruptures.</li>
+</ul>
+</li>
+<li><strong>Effect level:</strong> Comparable to the <strong>largest historical earthquakes</strong>, but focused at the impact site.</li>
+</ul>
+<h1></h1>
+<h3 id="5--ocean-impact--tsunami-if-over-water-1"><strong>5- Ocean Impact / Tsunami</strong> <em>(if over water)</em> </h3>
+<ul>
+<li><strong>Near-field waves:</strong> <strong>100–300 m</strong> high within 100–200 km.</li>
+<li><strong>Coastal run-up:</strong> &gt;100 m possible on nearby coasts.</li>
+<li><strong>Far-field waves:</strong> <strong>10–30 m</strong> across ocean basins; destructive trans-oceanic tsunami possible.</li>
+<li><strong>Effect level:</strong> Multiple coastlines across oceans at risk.</li>
+</ul>
+<h1></h1>
+<h3 id="6--atmospheric--environmental-effects"><strong>6- Atmospheric / Environmental Effects</strong> </h3>
+<ul>
+<li><strong>Dust and ejecta</strong> injected into stratosphere (10¹³–10¹⁵ kg).</li>
+<li><strong>Sunlight reduction</strong> for weeks–months at continental scale.</li>
+<li><strong>Regional cooling</strong> and short-term climate disruption.</li>
+<li><strong>Ozone destruction</strong> possible from NOx chemistry in upper atmosphere.</li>
+<li><strong>Effect level:</strong> Begins crossing from regional to <strong>global environmental hazard</strong>.</li>
+</ul>
+<h1></h1>
+<h3 id="7--timing-of-effects-scaled-up-from-regional-level"><strong>7- Timing of Effects</strong> <em>(Scaled up from regional-level)</em> </h3>
+<p>The sequence of events remains consistent but operates on dramatically extended timescales due to the continental-scale distances involved.</p>
+<ul>
+<li>
+<p><strong>Shock Front Arrival:</strong> The destructive blast wave travels at roughly the speed of sound (~340 m/s). For the massive radii in this range:</p>
+<ul>
+<li>At the <strong>widespread damage radius (100–200 km):</strong> Arrives <strong>~5–10 minutes</strong> after the flash.</li>
+<li>At the <strong>urban destruction radius (30–60 km):</strong> Arrives <strong>~1.5–3 minutes</strong> after the flash.</li>
+<li>At the <strong>total annihilation radius (10–20 km):</strong> Arrives <strong>~30–60 seconds</strong> after the flash.</li>
+</ul>
+</li>
+<li>
+<p><strong>Ejecta Arrival:</strong> The fallout of coarse debris follows ballistic trajectories.</p>
+<ul>
+<li>Widespread coarse ejecta arrives within <strong>~5 to 15 minutes</strong> after the impact across the continental-scale affected area.</li>
+</ul>
+</li>
+<li>
+<p><strong>Seismic Shaking:</strong> Felt almost instantly (within <strong>5-20 seconds</strong>) across the entire continent due to the high speed of seismic waves.</p>
+</li>
+</ul>
+<h1></h1>
+<h3 id="8--rotation--orbit-effects"><strong>8- Rotation / Orbit Effects</strong> </h3>
+<ul>
+<li><strong>No measurable effect</strong> on Earth’s orbit or rotation.</li>
+<li>Energies still ~10 orders of magnitude below what is needed to perturb Earth’s dynamics.</li>
+</ul>
+<h1></h1>
+<h3 id="impact-angle-effects-2">Impact Angle Effects </h3>
+<p><strong>impact consequences vary by angle while maintaining continental-scale energy:</strong></p>
+<ul>
+<li><strong>Steep Angles (60°-90°):</strong> Maximum crustal penetration creates deep circular craters with symmetric continental seismic waves</li>
+<li><strong>Moderate Angles (30°-60°):</strong> Balanced continental effects with standard crater formation and widespread damage</li>
+<li><strong>Shallow Angles (15°-30°):</strong> Elongated continental destruction corridors with one-sided ejecta distribution and directional tsunamis</li>
+</ul>
+<h2 id="famous-past-asteroid--comet-impacts---range-c-continental-scale">Famous Past Asteroid &amp; Comet Impacts - Range C (Continental Scale) </h2>
+<p>Based on scientific models of past events, here are impactors that fit Range C:</p>
+<h4 id="1-asteroid-chicxulub-impactor-yucatán-mexico"><strong>1. Asteroid: Chicxulub Impactor (Yucatán, Mexico)</strong> </h4>
+<ul>
+<li><strong>Actual Event:</strong> Caused the Cretaceous-Paleogene extinction event</li>
+<li><strong>Size:</strong> ~10-15 km diameter asteroid</li>
+<li>Created a 180 km crater and triggered global firestorms, tsunamis, and an impact winter that lasted for years, leading to the extinction of 75% of Earth's species.</li>
+<li>The energy released was billions of times more powerful than atomic bombs, vaporizing rock and creating a worldwide layer of iridium-rich dust that scientists still study today.</li>
+</ul>
+<h4 id="2-asteroid-popigai-impactor-siberia-russia"><strong>2. Asteroid: Popigai Impactor (Siberia, Russia)</strong> </h4>
+<ul>
+<li><strong>Actual Event:</strong> Created the Popigai crater 35 million years ago</li>
+<li><strong>Size:</strong> ~8 km diameter asteroid</li>
+<li>Formed one of the largest preserved craters on Earth at 100 km wide, generating enough heat and pressure to instantly create trillions of carats of industrial diamonds from the surrounding graphite.</li>
+<li>The impact coincided with a major extinction event, dramatically changing Earth's climate and ecosystems across multiple continents.</li>
+</ul>
+<h4 id="comet">comet: </h4>
+<p>There are no historically recorded, specifically named large comet impacts for Range C.<br>
+if any could happen it impact will be the same as the asteroid's</p>
+<hr>
+<hr>
+<h1 id="-3"></h1>
+<h2 id="range-d--global-scale">Range D — (global scale) </h2>
+<p><strong>Scope:</strong> Global catastrophe. Comparable to the Chicxulub impact (66 Myr ago) that caused mass extinction. Asteroid size typically 1–5 km (stony) at ~15–20 km/s.</p>
+<h3 id="1--blast-overpressure-1">1- Blast Overpressure </h3>
+<ul>
+<li><strong>100 kPa (~14.5 psi):</strong> radius <strong>50–100 km</strong> → complete destruction of all structures.</li>
+<li><strong>35 kPa (~5 psi):</strong> radius <strong>200–400 km</strong> → heavy building and forest destruction.</li>
+<li><strong>10 kPa (~1.5 psi):</strong> radius <strong>500–1000 km</strong> → widespread damage to infrastructure and vegetation.</li>
+<li><strong>Effect level:</strong> Multiple countries simultaneously devastated.</li>
+</ul>
+<h1></h1>
+<h3 id="2--thermal-radiation-1">2- Thermal Radiation </h3>
+<ul>
+<li><strong>100 kJ/m²:</strong> radius <strong>30–50 km</strong> → ignition of all combustibles, unsurvivable burns.</li>
+<li><strong>20 kJ/m²:</strong> radius <strong>200–400 km</strong> → widespread fires, 3rd-degree burns.</li>
+<li><strong>2–10 kJ/m²:</strong> radius <strong>1000+ km</strong> → spot ignition, severe burns.</li>
+<li><strong>Effect level:</strong> Firestorms across continental scales. Secondary ignition from re-entering ejecta may trigger <strong>global wildfires</strong>.</li>
+</ul>
+<h1></h1>
+<h3 id="3--crater-formation">3- Crater Formation </h3>
+<ul>
+<li><strong>Final diameter:</strong> <strong>50–150 km</strong> (Chicxulub: ~180 km).</li>
+<li><strong>Depth:</strong> <strong>3–5 km</strong>.</li>
+<li><strong>Ejecta blanket:</strong>
+<ul>
+<li>Hundreds of m thick near rim.</li>
+<li>Tens of m thick at 50–100 km.</li>
+<li><strong>cm–m deposits</strong> spread globally.</li>
+</ul>
+</li>
+<li><strong>Effect level:</strong> Crater the size of small seas; ejecta veil covers the planet.</li>
+</ul>
+<h1></h1>
+<h3 id="4--seismic-effects-1">4- Seismic Effects </h3>
+<ul>
+<li>Equivalent earthquake magnitude: <strong>Mw ~9.0–10.0</strong>.</li>
+<li><strong>Intensity (MMI):</strong>
+<ul>
+<li><strong>IX–X</strong> (violent to extreme) within <strong>1000 km</strong>.</li>
+<li>Fault rupture, massive landslides globally possible.</li>
+</ul>
+</li>
+<li><strong>Effect level:</strong> Comparable to the <strong>largest tectonic earthquakes ever recorded</strong>, but triggered by impact.</li>
+</ul>
+<h1></h1>
+<h3 id="5--ocean-impact--tsunami">5- Ocean Impact / Tsunami </h3>
+<ul>
+<li><strong>Near-field waves:</strong> <strong>&gt;500 m</strong> high within 200–500 km.</li>
+<li><strong>Coastal run-up:</strong> hundreds of m possible on adjacent coasts.</li>
+<li><strong>Far-field waves:</strong> <strong>10–100 m</strong> trans-oceanic tsunamis; destruction across multiple ocean basins.</li>
+<li><strong>Effect level:</strong> Entire ocean basins destabilized; global tsunami hazard.</li>
+</ul>
+<h1></h1>
+<h3 id="6--atmospheric--global-environmental-effects">6- Atmospheric &amp; Global Environmental Effects </h3>
+<ul>
+<li><strong>Dust &amp; aerosols:</strong> 10¹⁵–10¹⁷ kg injected into stratosphere.</li>
+<li><strong>Sunlight blocked:</strong> 50–90% reduction for months to years.</li>
+<li><strong>Impact winter:</strong> global surface cooling by <strong>10–20°C</strong> for 1–3 years.</li>
+<li><strong>Global fires:</strong> ejecta re-entry ignites biomass worldwide → injection of soot/CO₂.</li>
+<li><strong>Acid rain:</strong> vaporized rock + ocean salts produce nitric/sulfuric acids.</li>
+<li><strong>Effect level:</strong> <strong>Mass extinction driver</strong>: collapse of food chains, long-term biosphere disruption.</li>
+</ul>
+<h1></h1>
+<h3 id="7--rotation--orbit-effects">7- Rotation / Orbit Effects </h3>
+<h4 id="rotationorbit-quick-rules-apply-everywhere-in-range-d">Rotation/Orbit quick rules (apply everywhere in Range D) </h4>
+<ul>
+<li><strong>Orbit:</strong> impact location <strong>does not matter</strong>. Earth ΔV is set by asteroid momentum direction; magnitude remains <strong>negligible</strong>.</li>
+<li><strong>Day length (ΔT):</strong> scale your equatorial best-case by latitude: <strong>ΔT(φ) ≈ ΔT_max · cos|φ|</strong>.</li>
+<li><strong>Tilt kick (Δε):</strong> scale by <strong>sin|φ|</strong> and by the component of momentum <strong>perpendicular</strong> to spin axis (max near poles, oblique approach).</li>
+</ul>
+<p>Results for ΔT_max:</p>
+<ul>
+<li><strong>1 km:</strong> ±0.003 ms</li>
+<li><strong>3 km:</strong> ±0.080 ms</li>
+<li><strong>5 km:</strong> ±0.37 ms</li>
+</ul>
+<blockquote>
+<p>Note: signs: <strong>eastward (prograde) → shorter day</strong>, <strong>westward (retrograde) → longer day</strong>. Near-vertical strikes give minimal ΔT regardless of latitude.</p>
+</blockquote>
+<h2 id="8--timing">8- Timing </h2>
+<ul>
+<li>
+<p><strong>Shock front:</strong></p>
+<ul>
+<li>Destruction radius (50–100 km): arrives 3–5 min</li>
+<li>Heavy damage (200–400 km): 10–20 min</li>
+<li>Glass breakage (500–1000 km): 25–50 min</li>
+</ul>
+</li>
+<li>
+<p><strong>Thermal radiation:</strong> instant (at flash); global secondary heating from ejecta re-entry in hours.</p>
+</li>
+<li>
+<p><strong>Ejecta arrival:</strong></p>
+<ul>
+<li>Local large fragments: 10–30 min</li>
+<li>Global fallout: 0.5–3 h</li>
+</ul>
+</li>
+<li>
+<p><strong>Seismic shaking:</strong> felt within seconds; Mw 9–10; global waves circle Earth in ~1 h.</p>
+</li>
+<li>
+<p><strong>Tsunami (ocean strike):</strong></p>
+<ul>
+<li>Local megatsunami: minutes</li>
+<li>Trans-oceanic waves: 6–12 h</li>
+</ul>
+</li>
+<li>
+<p><strong>Atmospheric effects:</strong></p>
+<ul>
+<li>Sky darkening: hours</li>
+<li>Sunlight reduction: days</li>
+<li>Cooling (impact winter): weeks → years</li>
+</ul>
+<h1></h1>
+</li>
+</ul>
+<h3 id="impact-angle-effects-3">Impact Angle Effects </h3>
+<ul>
+<li><strong>Steep Angles (60°-90°):</strong> Maximum atmospheric coupling creates symmetric global climate disruption and even ejecta distribution</li>
+<li><strong>Moderate Angles (30°-60°):</strong> Balanced global effects with standard atmospheric injection and widespread environmental collapse</li>
+<li><strong>Shallow Angles (15°-30°):</strong> Hemispheric-biased climate effects with asymmetric ejecta distribution and directional atmospheric stripping0</li>
+</ul>
+<h1></h1>
+<h2 id="famous-past-asteroid-impacts-1">Famous Past Asteroid Impacts </h2>
+<p><strong>1. Asteroid: Chicxulub Impactor (Yucatán, Mexico)</strong></p>
+<ul>
+<li><strong>Actual Event:</strong> Caused the Cretaceous-Paleogene extinction event 66 million years ago</li>
+<li><strong>Size:</strong> ~10-15 km diameter asteroid</li>
+<li>Struck the Earth with cataclysmic force, creating a ~180 km crater and vaporizing billions of tons of rock. The impact triggered mega-tsunamis, global firestorms, and an "impact winter" that blocked sunlight for years.</li>
+<li>This single event caused the extinction of ~75% of all species on Earth, including most dinosaurs, fundamentally reshaping the course of life on our planet. The global layer of iridium-rich clay it left behind is a permanent scar in the geological record.</li>
+</ul>
+<p><strong>2. The Vredefort Impactor (South Africa)</strong></p>
+<ul>
+<li><strong>Actual Event:</strong> Formed the Vredefort Crater about 2 billion years ago.</li>
+<li><strong>Size:</strong> Estimated ~10-15 km diameter asteroid.</li>
+<li>Created the largest and oldest confirmed impact structure on Earth, with an original crater estimated to be 250-300 km in diameter. The energy released was even greater than the Chicxulub event.</li>
+<li>While too ancient to have affected complex life, it serves as a stark reminder that impacts of this devastating, global-scale magnitude have struck Earth multiple times throughout its history.</li>
+</ul>
+<hr>
+<h2 id="famous-comet">Famous Comet: </h2>
+<h4 id="late-eocene-impact-cluster-doesnt-have-a-specific-name">Late Eocene Impact Cluster (doesnt have a specific name) </h4>
+<p><strong>Actual Event:</strong> A series of nearly simultaneous impacts from a fragmented comet ~35 million years ago<br>
+<strong>Size:</strong> Several kilometer-scale comet fragments</p>
+<p><strong>Impact Effects:</strong><br>
+A large comet broke apart before impact, striking Earth in multiple locations including the Chesapeake Bay (USA) and Popigai (Siberia). The combined impacts created craters over 85 km wide, triggered massive tsunamis across the Atlantic, and blasted enough dust into the atmosphere to cause immediate global cooling. This event led to a major extinction, particularly devastating marine life and reshaping ocean ecosystems worldwide.</p>
+<p><strong>Human Perspective:</strong><br>
+This cosmic event demonstrates how a single comet can become a shotgun blast of destruction across the planet. If a similar fragmentation event occurred today, it would overwhelm planetary defense systems trying to track multiple incoming objects simultaneously, making it one of the most challenging scenarios for humanity to prevent.</p>
+<h1></h1>
+<hr>
+<hr>
+<blockquote>
+<p><strong>Note:</strong> Both asteroids and comets can produce impacts up to Range D (global extinction scale). However, only <strong>extremely large asteroids</strong> — hundreds of kilometers across — are capable of reaching Range E. No known comet nucleus is large enough to deliver true Range E (planet-altering) energy; such collisions are comparable to the Mars-sized impactor believed to have formed the Moon.</p>
+</blockquote>
+<hr>
+<h1></h1>
+<h3 id="range-e--planetary-scale-1022-j"><strong>Range E — Planetary Scale (&gt;10²² J)</strong> </h3>
+<p><strong>Scope:</strong> Impacts with energy exceeding 10²² Joules. This range encompasses a progression from the lower bound of <strong>planetary-scale disruption</strong> to the upper bound of <strong>literal planet-altering events</strong>. We subdivide this range to clarify the escalation of effects.</p>
+<h4 id="e1-global-catastrophe--near-planet-killer-1022--1023-j"><strong>E1: Global Catastrophe / Near-Planet Killer (10²² – 10²³ J)</strong> </h4>
+<ul>
+<li><strong>Impactor:</strong> ~5 km to ~10 km diameter (stony) at typical velocities.</li>
+<li><strong>Concept:</strong> This is the extreme upper end of a biospheric extinction event. It represents a more severe version of the Chicxulub impact, with darker, colder, and longer-lasting conditions that could push the biosphere to the brink of total collapse, with recovery taking tens of millions of years.</li>
+</ul>
+<h3 id="famous-asteroids">Famous Asteroids: </h3>
+<h4 id="1--chicxulub-impact-yucatán-mexico">1- Chicxulub Impact (Yucatán, Mexico) </h4>
+<p><strong>The Impact:</strong> A 10-15 kilometer wide asteroid struck Earth, creating the famous crater linked to the dinosaur extinction.</p>
+<p><strong>What Happened to Earth:</strong></p>
+<ul>
+<li>Created a 180-kilometer wide crater that is now buried under sediment.</li>
+<li>Triggered global firestorms and massive tsunamis that swept across oceans.</li>
+<li>Threw so much dust into the atmosphere that it blocked sunlight worldwide for years.</li>
+</ul>
+<p><strong>How Long It Took to Recover:</strong></p>
+<ul>
+<li><strong>First few years:</strong> "Impact winter" with freezing temperatures and darkness.</li>
+<li><strong>Thousands of years:</strong> Climate slowly stabilized, but ecosystems remained simple.</li>
+<li><strong>Millions of years:</strong> New species evolved to replace the extinct dinosaurs, leading to the age of mammals.</li>
+</ul>
+<p><strong>Effects on Earth's Rotation and Orbit:</strong></p>
+<ul>
+<li>The impact caused a tiny, almost undetectable change in Earth's rotation.</li>
+<li>No significant change to Earth's tilt or orbit around the Sun.</li>
+<li>The planet's fundamental motion in space remained unchanged.</li>
+</ul>
+<p><strong>Unique Consequences:</strong></p>
+<ul>
+<li>Caused the extinction of 75% of all species, including most dinosaurs.</li>
+<li>Created a worldwide layer of iridium-rich dust that scientists use to date the event.</li>
+<li>Cleared the way for mammals to eventually dominate the planet.</li>
+<li>The crater's unique structure influences local groundwater flow even today.</li>
+</ul>
+<h4 id="2--popigai-impact-siberia-russia">2- Popigai Impact (Siberia, Russia) </h4>
+<p><strong>The Impact:</strong> An 8-kilometer wide asteroid hit Siberia, creating one of the best-preserved large craters on Earth.</p>
+<p><strong>What Happened to Earth:</strong></p>
+<ul>
+<li>Formed a 100-kilometer wide crater that remains clearly visible today.</li>
+<li>Generated so much heat and pressure that it instantly transformed graphite into trillions of carats of diamonds.</li>
+<li>Coincided with a major period of global cooling and ecosystem changes.</li>
+</ul>
+<p><strong>How Long It Took to Recover:</strong></p>
+<ul>
+<li><strong>First century:</strong> Local area remained uninhabitable due to heat and debris.</li>
+<li><strong>Thousands of years:</strong> Crater lakes formed and basic ecosystems returned.</li>
+<li><strong>Millions of years:</strong> The crater became a unique geological feature, preserving evidence of the impact.</li>
+</ul>
+<p><strong>Effects on Earth's Rotation and Orbit:</strong></p>
+<ul>
+<li>Caused minimal, temporary effects on Earth's rotation.</li>
+<li>No lasting changes to Earth's axial tilt or orbital characteristics.</li>
+<li>The impact was significant locally but not globally disruptive to Earth's motion.</li>
+</ul>
+<p><strong>Unique Consequences:</strong></p>
+<ul>
+<li>Created the world's largest diamond field, though the diamonds are mostly industrial quality.</li>
+<li>Provides one of the clearest records of a major impact in the geological timeline.</li>
+<li>Helped scientists understand how impacts can create valuable mineral resources.</li>
+<li>Serves as a natural laboratory for studying large impact processes.</li>
+</ul>
+<h4 id="e2-planet-killer-1023--1025-j"><strong>E2: Planet Killer (10²³ – 10²⁵ J)</strong> </h4>
+<ul>
+<li><strong>Impactor:</strong> ~10 km to ~50 km diameter.</li>
+<li><strong>Concept:</strong> This is a true <strong>planetary sterilization event</strong>. Recovery of complex life is impossible. The surface environment is reset to a pre-biotic state for hundreds of millions of years. The energy is sufficient to cause global crustal melting and significant atmosphere loss.</li>
+</ul>
+<h3 id="famous-asteroids-1">famous asteroids: </h3>
+<h4 id="1--vredefort-impact-south-africa">1- Vredefort Impact (South Africa) </h4>
+<p><strong>The Impact:</strong> A massive asteroid about 15-20 kilometers wide slammed into Earth, creating the largest confirmed impact crater on our planet.</p>
+<p><strong>What Happened to Earth:</strong></p>
+<ul>
+<li>The impact created a crater 250-300 kilometers across - large enough to swallow several cities.</li>
+<li>The explosion was more powerful than all nuclear weapons combined.</li>
+<li>Rocks were thrown thousands of kilometers, and the heat generated was intense enough to melt the Earth's crust in the area.</li>
+</ul>
+<p><strong>How Long It Took to Recover:</strong></p>
+<ul>
+<li><strong>First few years:</strong> The immediate area remained a molten wasteland.</li>
+<li><strong>Thousands of years:</strong> The crater filled with water and began to cool.</li>
+<li><strong>Millions of years:</strong> Erosion and geological processes slowly disguised the crater, though it remains visible today.</li>
+</ul>
+<p><strong>Effects on Earth's Rotation and Orbit:</strong></p>
+<ul>
+<li>The impact likely caused a tiny, temporary change in Earth's rotation speed.</li>
+<li>It did not significantly alter Earth's tilt or orbit around the Sun.</li>
+<li>Any changes were too small to have lasting effects on the planet's climate system.</li>
+</ul>
+<p><strong>Unique Consequences:</strong></p>
+<ul>
+<li>Created the largest verified impact structure on Earth.</li>
+<li>Generated so much heat and pressure that it created unique rock formations.</li>
+<li>If this happened today, it would cause complete planetary sterilization - ending all complex life.</li>
+</ul>
+<h4 id="2--sudbury-impact-canada">2- Sudbury Impact (Canada) </h4>
+<p><strong>The Impact:</strong> Another enormous asteroid, roughly 10-15 kilometers in diameter, struck Earth and formed one of the world's largest impact structures.</p>
+<p><strong>What Happened to Earth:</strong></p>
+<ul>
+<li>Created a massive crater originally 130-260 kilometers wide.</li>
+<li>The impact was so powerful it melted deep parts of Earth's crust.</li>
+<li>This melting created one of the world's richest nickel and copper deposits.</li>
+</ul>
+<p><strong>How Long It Took to Recover:</strong></p>
+<ul>
+<li><strong>Initial millennia:</strong> The crater remained a deep basin filled with impact melt.</li>
+<li><strong>Millions of years:</strong> Mineral-rich fluids deposited valuable metals that we mine today.</li>
+<li><strong>1.8 billion years later:</strong> The structure is still visible, though heavily modified by geological forces.</li>
+</ul>
+<p><strong>Effects on Earth's Rotation and Orbit:</strong></p>
+<ul>
+<li>Caused minor, temporary changes to Earth's rotation.</li>
+<li>No permanent alteration to Earth's axial tilt or orbital path.</li>
+<li>The impact was significant but not large enough to fundamentally change Earth's position in space.</li>
+</ul>
+<p><strong>Unique Consequences:</strong></p>
+<ul>
+<li>Created one of Earth's most valuable mining districts from the impact melt.</li>
+<li>Helped scientists understand how large impacts can create economic mineral deposits.</li>
+<li>Demonstrated that even planet-killing impacts can create resources that later benefit civilization.</li>
+</ul>
+<h4 id="e3-world-former--planetary-disruption-1025-j"><strong>E3: World-Former / Planetary Disruption (&gt;10²⁵ J)</strong> </h4>
+<ul>
+<li><strong>Impactor:</strong> &gt;50 km diameter, up to planetary embryos (Mars-sized, ~1000s of km).</li>
+<li><strong>Concept:</strong> This is no longer an "impact" in the conventional sense; it's a <strong>planetary accretion or disruption event</strong>. It doesn't just kill the planet—it can remake it or destroy it. The Moon-forming impact (Theia) is the quintessential E3 event.</li>
+</ul>
+<h4 id="famous-asteroid-">Famous Asteroid : </h4>
+<h5 id="theia-impact-the-moon-formed-impact"><strong>Theia Impact (The Moon-Formed Impact)</strong> </h5>
+<p><strong>The Impact:</strong> A Mars-sized planet called Theia smashed into the early Earth. The collision was so powerful it melted both planets and blasted a huge amount of rock into orbit around Earth.</p>
+<p><strong>What Changed on Earth:</strong></p>
+<ul>
+<li>Earth got bigger, gaining about 10% of its current mass.</li>
+<li>The collision completely melted Earth's surface, creating a global ocean of magma.</li>
+<li>Material from the impact eventually clumped together to form our Moon.</li>
+</ul>
+<p><strong>How Long It Took to Recover:</strong></p>
+<ul>
+<li><strong>First 100 years:</strong> Earth was a ball of molten rock with surface temperatures over 2000°C.</li>
+<li><strong>Next 10,000 years:</strong> The surface began to cool and solidify; a new atmosphere started to form.</li>
+<li><strong>1 million years later:</strong> The first oceans appeared as water vapor condensed.</li>
+<li><strong>100 million years later:</strong> Earth's crust finally stabilized, creating conditions where life could eventually begin.</li>
+</ul>
+<p><strong>How Earth's Spin and Orbit Changed:</strong></p>
+<ul>
+<li>Earth's day lengthened from 5 hours to 18 hours.</li>
+<li>The impact gave Earth its tilt (23.5 degrees), which creates our seasons.</li>
+<li>Earth's orbit around the Sun became more circular and stable.</li>
+</ul>
+<p><strong>Special Effects of This Impact:</strong></p>
+<ul>
+<li>Created our Moon, which helps stabilize Earth's climate.</li>
+<li>Gave Earth a larger iron core, strengthening our magnetic field.</li>
+<li>Completely reshaped Earth's surface and interior structure.</li>
+<li>Made Earth unique among planets in our solar system.<br>
+<br></li>
+</ul>
+<p><strong>Table: Sub-Categories of Planetary-Scale Impacts (Range E)</strong></p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">Sub-Range</th>
+<th style="text-align:left">Energy (J)</th>
+<th style="text-align:left">Analog</th>
+<th style="text-align:left">Primary Effect</th>
+<th style="text-align:left">Planetary Mechanics?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>E1</strong></td>
+<td style="text-align:left">10²² – 10²³</td>
+<td style="text-align:left">Large Chicxulub+</td>
+<td style="text-align:left"><strong>Biosphere Annihilation</strong></td>
+<td style="text-align:left"><strong>No</strong> measurable change</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>E2</strong></td>
+<td style="text-align:left">10²³ – 10²⁵</td>
+<td style="text-align:left">—</td>
+<td style="text-align:left"><strong>Planetary Sterilization</strong></td>
+<td style="text-align:left"><strong>Yes.</strong> Changes to day, tilt.</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>E3</strong></td>
+<td style="text-align:left">&gt;10²⁵</td>
+<td style="text-align:left">Theia (Moon-Forming)</td>
+<td style="text-align:left"><strong>Planetary Remaking</strong></td>
+<td style="text-align:left"><strong>Yes.</strong> Drastic alteration.</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h3 id="1--blast-overpressure-2"><strong>1- Blast Overpressure</strong> </h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">Effect</th>
+<th style="text-align:left">E1: Global Catastrophe</th>
+<th style="text-align:left">E2: Planet Killer</th>
+<th style="text-align:left">E3: World-Former</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>100 kPa (Destruction)</strong></td>
+<td style="text-align:left">Radius: <strong>100–200 km</strong></td>
+<td style="text-align:left">Radius: <strong>500–1000 km</strong></td>
+<td style="text-align:left"><strong>Hemispheric.</strong> The concept of a "blast radius" becomes meaningless as the entire hemisphere is scoured.</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>35 kPa (Heavy Damage)</strong></td>
+<td style="text-align:left">Radius: <strong>300–600 km</strong></td>
+<td style="text-align:left">Radius: <strong>1500–3000 km</strong></td>
+<td style="text-align:left"><strong>Global.</strong> The shockwave circumnavigates the globe multiple times.</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>10 kPa (Glass Breakage)</strong></td>
+<td style="text-align:left">Radius: <strong>1000–2000 km</strong></td>
+<td style="text-align:left"><strong>Near-global.</strong></td>
+<td style="text-align:left"><strong>N/A.</strong> No structures remain.</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Effect Level</strong></td>
+<td style="text-align:left">Multiple continents devastated.</td>
+<td style="text-align:left">Destruction is truly global and simultaneous.</td>
+<td style="text-align:left">The solid earth itself is globally shocked and melted.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="2--thermal-radiation-2"><strong>2- Thermal Radiation</strong> </h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">Effect</th>
+<th style="text-align:left">E1: Global Catastrophe</th>
+<th style="text-align:left">E2: Planet Killer</th>
+<th style="text-align:left">E3: World-Former</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>100 kJ/m² (Ignition)</strong></td>
+<td style="text-align:left">Radius: <strong>50–100 km</strong></td>
+<td style="text-align:left">Radius: <strong>200–500 km</strong></td>
+<td style="text-align:left"><strong>Global.</strong> The energy flux vaporizes the upper ocean layer and melts surface rock globally.</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>20 kJ/m² (3rd-Degree Burns)</strong></td>
+<td style="text-align:left">Radius: <strong>200–500 km</strong></td>
+<td style="text-align:left">Radius: <strong>1000–2500 km</strong></td>
+<td style="text-align:left"><strong>N/A.</strong></td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>2–10 kJ/m² (Burns)</strong></td>
+<td style="text-align:left"><strong>Global</strong> from re-entering ejecta.</td>
+<td style="text-align:left"><strong>Global.</strong></td>
+<td style="text-align:left"><strong>N/A.</strong></td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Effect Level</strong></td>
+<td style="text-align:left">Guaranteed global firestorms.</td>
+<td style="text-align:left">Oceans boil locally; atmosphere heats significantly globally.</td>
+<td style="text-align:left">The impact flash itself provides enough energy to melt the crust. The atmosphere may be partially vaporized.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="3--crater-formation-1"><strong>3- Crater Formation</strong> </h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">Effect</th>
+<th style="text-align:left">E1: Global Catastrophe</th>
+<th style="text-align:left">E2: Planet Killer</th>
+<th style="text-align:left">E3: World-Former</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>Final Diameter</strong></td>
+<td style="text-align:left"><strong>100–250 km</strong></td>
+<td style="text-align:left"><strong>500–2000 km</strong> (Multi-ring basin)</td>
+<td style="text-align:left"><strong>&gt;3000 km.</strong> No discrete crater. The event is <strong>accretional</strong> (adds mass) or <strong>disruptional</strong> (shatters the planet).</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Depth</strong></td>
+<td style="text-align:left"><strong>5–10 km</strong></td>
+<td style="text-align:left"><strong>10–30 km</strong> (penetrating the crust)</td>
+<td style="text-align:left">The entire planet is reworked. A global magma ocean forms.</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Ejecta</strong></td>
+<td style="text-align:left">Global layer <strong>~1–5 m</strong> thick.</td>
+<td style="text-align:left">Global layer <strong>10–100 m</strong> thick. <strong>Secondary impacts</strong> create craters everywhere.</td>
+<td style="text-align:left"><strong>Mass exchange.</strong> Significant mass is ejected into space (to form a moon or rings) or is accreted from the impactor.</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Effect Level</strong></td>
+<td style="text-align:left">Crater is a dominant geological feature for eons.</td>
+<td style="text-align:left">The crater is a planetary-scale feature that remodels the crust.</td>
+<td style="text-align:left">The planet is destroyed or remade into a new planetary body.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="4--seismic-effects-2"><strong>4- Seismic Effects</strong> </h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">Effect</th>
+<th style="text-align:left">E1: Global Catastrophe</th>
+<th style="text-align:left">E2: Planet Killer</th>
+<th style="text-align:left">E3: World-Former</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>Magnitude (Mw)</strong></td>
+<td style="text-align:left"><strong>~10.0–10.5</strong></td>
+<td style="text-align:left"><strong>~11.0–12.0</strong></td>
+<td style="text-align:left"><strong>&gt;12.0.</strong> The entire planet is liquefied. Seismic waves are irrelevant.</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Shaking (MMI)</strong></td>
+<td style="text-align:left"><strong>X (Extreme)</strong> across the entire planet.</td>
+<td style="text-align:left"><strong>&gt;X.</strong> Shaking exceeds all scales. Crust is fractured globally.</td>
+<td style="text-align:left">N/A</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Effect Level</strong></td>
+<td style="text-align:left">The planet "rings like a bell" for months. Triggers global volcanism.</td>
+<td style="text-align:left">Global crustal fragmentation. Widespread mantle melting.</td>
+<td style="text-align:left">Whole-planet melting and differentiation.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="5--ocean-impact--tsunami-1"><strong>5- Ocean Impact / Tsunami</strong> </h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">Effect</th>
+<th style="text-align:left">E1: Global Catastrophe</th>
+<th style="text-align:left">E2: Planet Killer</th>
+<th style="text-align:left">E3: World-Former</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>Near-Field Waves</strong></td>
+<td style="text-align:left"><strong>~1 km</strong> high.</td>
+<td style="text-align:left"><strong>Several km</strong> high.</td>
+<td style="text-align:left"><strong>Planetary-scale.</strong> Waves are limited only by the depth of the atmosphere.</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Far-Field Waves</strong></td>
+<td style="text-align:left"><strong>50–100 m</strong> trans-oceanic.</td>
+<td style="text-align:left"><strong>100–500 m</strong> trans-oceanic.</td>
+<td style="text-align:left">The ocean is globally vaporized and redistributed.</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Effect Level</strong></td>
+<td style="text-align:left">Every coastline on Earth is obliterated.</td>
+<td style="text-align:left">Entire ocean basins are emptied and refilled multiple times.</td>
+<td style="text-align:left">The existence of liquid water oceans is temporarily terminated.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="6--atmospheric--environmental-effects-1"><strong>6- Atmospheric &amp; Environmental Effects</strong> </h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">Effect</th>
+<th style="text-align:left">E1: Global Catastrophe</th>
+<th style="text-align:left">E2: Planet Killer</th>
+<th style="text-align:left">E3: World-Former</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>Dust/Aerosols</strong></td>
+<td style="text-align:left"><strong>10¹⁶–10¹⁷ kg</strong> injected. Sunlight reduced by <strong>&gt;99%</strong> for <strong>5-10 years</strong>.</td>
+<td style="text-align:left"><strong>10¹⁸–10¹⁹ kg</strong> injected. <strong>Complete darkness</strong> for <strong>decades</strong>.</td>
+<td style="text-align:left">The primordial atmosphere is completely lost and must be outgassed again from the molten planet.</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Impact Winter</strong></td>
+<td style="text-align:left">Global cooling of <strong>15–25°C</strong>.</td>
+<td style="text-align:left">Global cooling of <strong>&gt;50°C</strong>. The surface freezes solid to great depths.</td>
+<td style="text-align:left">N/A</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Other Effects</strong></td>
+<td style="text-align:left">Complete ozone destruction. Acid rain for centuries.</td>
+<td style="text-align:left">Atmosphere is stripped away or converted to a toxic mixture of rock vapor.</td>
+<td style="text-align:left"><strong>Atmosphere Loss.</strong> The new atmosphere is formed from volcanic outgassing.</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Effect Level</strong></td>
+<td style="text-align:left"><strong>Total collapse of the photosynthetic base.</strong> Mass extinction of all large life.</td>
+<td style="text-align:left"><strong>Sterilization.</strong> All life, including extremophiles, is eradicated. The planet is dead.</td>
+<td style="text-align:left"><strong>Re-formation.</strong> The planet's environment is completely reset from scratch.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="7--rotation--orbit-effects-1"><strong>7- Rotation &amp; Orbit Effects</strong> </h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">Effect</th>
+<th style="text-align:left">E1: Global Catastrophe</th>
+<th style="text-align:left">E2: Planet Killer</th>
+<th style="text-align:left">E3: World-Former</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>Rotation (Day Length)</strong></td>
+<td style="text-align:left"><strong>No measurable change.</strong> The effect (≤ milliseconds) is lost in natural variability.</td>
+<td style="text-align:left"><strong>Measurable change.</strong> Day length alters by <strong>seconds to minutes</strong>.</td>
+<td style="text-align:left"><strong>Drastic change.</strong> Day length changed by <strong>hours</strong>. The Earth's spin can be dramatically slowed or reversed.</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Obliquity (Tilt)</strong></td>
+<td style="text-align:left"><strong>No change.</strong></td>
+<td style="text-align:left"><strong>Change of 1-5 degrees.</strong> This would significantly alter climate zones.</td>
+<td style="text-align:left"><strong>Change of &gt;10 degrees.</strong> This would completely redefine Earth's seasons and climate.</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Orbit</strong></td>
+<td style="text-align:left"><strong>No change.</strong> Energy is ~10 orders of magnitude too small.</td>
+<td style="text-align:left"><strong>Minor detectable changes</strong> in eccentricity or inclination.</td>
+<td style="text-align:left"><strong>Major changes.</strong> The Earth's orbital path around the Sun is significantly modified.</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Effect Level</strong></td>
+<td style="text-align:left">The "planet" is fine; the "biosphere" is not.</td>
+<td style="text-align:left">The planet's fundamental mechanics are noticeably, permanently altered.</td>
+<td style="text-align:left">The event sets the new rotational and orbital parameters for the remade planet.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="8--timing-of-effects"><strong>8- Timing of Effects</strong> </h3>
+<table>
+<thead>
+<tr>
+<th>Effect Type</th>
+<th>E1: Global Catastrophe</th>
+<th>E2: Planet Killer</th>
+<th>E3: World-Former</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Blast Overpressure</strong></td>
+<td>• 100 kPa: 100-200 km radius<br>• 35 kPa: 300-600 km radius<br>• 10 kPa: 1000-2000 km radius</td>
+<td>• 100 kPa: 500-1000 km radius<br>• 35 kPa: 1500-3000 km radius<br>• 10 kPa: Near-global</td>
+<td>• Hemispheric scouring<br>• Shockwave circumnavigates globe<br>• No structures remain</td>
+</tr>
+<tr>
+<td><strong>Thermal Radiation</strong></td>
+<td>• Ignition: 50-100 km radius<br>• Burns: 200-500 km radius<br>• Global firestorms</td>
+<td>• Ignition: 200-500 km radius<br>• Burns: 1000-2500 km radius<br>• Oceans boil locally</td>
+<td>• Global rock vaporization<br>• Ocean layer vaporized<br>• Atmosphere heating</td>
+</tr>
+<tr>
+<td><strong>Crater Formation</strong></td>
+<td>• Diameter: 100-250 km<br>• Depth: 5-10 km<br>• Ejecta: 1-5 m global layer</td>
+<td>• Diameter: 500-2000 km<br>• Depth: 10-30 km<br>• Ejecta: 10-100 m global layer</td>
+<td>• No discrete crater<br>• Global magma ocean<br>• Planetary remaking</td>
+</tr>
+<tr>
+<td><strong>Seismic Effects</strong></td>
+<td>• Magnitude: Mw 10.0-10.5<br>• Intensity X globally<br>• Planet "rings" for months</td>
+<td>• Magnitude: Mw 11.0-12.0<br>• Crustal fragmentation<br>• Mantle melting</td>
+<td>• Magnitude: &gt;Mw 12.0<br>• Whole-planet melting<br>• Planetary differentiation</td>
+</tr>
+<tr>
+<td><strong>Ocean Impact / Tsunami</strong></td>
+<td>• Waves: ~1 km high<br>• Trans-oceanic: 50-100 m<br>• Coastlines obliterated</td>
+<td>• Waves: Several km high<br>• Trans-oceanic: 100-500 m<br>• Ocean basins emptied</td>
+<td>• Planetary-scale waves<br>• Oceans vaporized<br>• Water cycle terminated</td>
+</tr>
+<tr>
+<td><strong>Atmospheric &amp; Environmental</strong></td>
+<td>• Dust: 10¹⁶–10¹⁷ kg<br>• Darkness: 5-10 years<br>• Cooling: 15-25°C</td>
+<td>• Dust: 10¹⁸–10¹⁹ kg<br>• Darkness: Decades<br>• Cooling: &gt;50°C</td>
+<td>• Atmosphere lost<br>• Re-outgassing required<br>• Complete sterilization</td>
+</tr>
+<tr>
+<td><strong>Rotation &amp; Orbit</strong></td>
+<td>• Day: No change<br>• Tilt: No change<br>• Orbit: No change</td>
+<td>• Day: Seconds-minutes change<br>• Tilt: 1-5° change<br>• Orbit: Minor changes</td>
+<td>• Day: Hours change<br>• Tilt: &gt;10° change<br>• Orbit: Major modification</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<hr>
+<hr>
+<p>---------------------------------------&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;       THE END    !!!!</p>
+
+      </div>
+      
+      
+    
+    
+    
+    
+    
+    
+  
+    </body></html>
