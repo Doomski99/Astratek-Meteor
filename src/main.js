@@ -101,7 +101,6 @@ const impactorForm = document.getElementById('impactorForm');
 const impactorNameInput = document.getElementById('impactorName');
 const impactorTypeInput = document.getElementById('impactorType');
 const impactorDiameterInput = document.getElementById('impactorDiameter');
-const impactorVelocityInput = document.getElementById('impactorVelocity');
 const impactorSubmitButton = impactorForm?.querySelector('button[type="submit"]') ?? null;
 const impactorResetButton = document.getElementById('impactorResetButton');
 const impactorFeedbackElement = document.querySelector('[data-impactor-feedback]');
@@ -122,15 +121,18 @@ const impactMapCaptionBaseText = impactMapCaptionElement?.textContent ?? '';
 const ASTEROID_TYPES = {
   M: {
     densityKgPerM3: 7800,
-    couplingEfficiency: 0.5
+    couplingEfficiency: 0.5,
+    nominalVelocityKmPerSecond: 22
   },
   S: {
     densityKgPerM3: 3500,
-    couplingEfficiency: 0.4
+    couplingEfficiency: 0.4,
+    nominalVelocityKmPerSecond: 18
   },
   C: {
     densityKgPerM3: 2100,
-    couplingEfficiency: 0.35
+    couplingEfficiency: 0.35,
+    nominalVelocityKmPerSecond: 15
   }
 };
 
@@ -623,7 +625,7 @@ function setImpactorFormState({ isSubmitting = false, hasActiveImpactor = false 
   if (impactorResetButton) {
     impactorResetButton.disabled = !hasActiveImpactor;
   }
-  [impactorTypeInput, impactorDiameterInput, impactorVelocityInput, impactorNameInput]
+  [impactorTypeInput, impactorDiameterInput, impactorNameInput]
     .filter(Boolean)
     .forEach(input => {
       input.disabled = hasActiveImpactor && !isSubmitting;
@@ -658,10 +660,13 @@ function handleImpactorSubmit(event) {
       throw new Error('Please select a valid asteroid type.');
     }
     const diameterMeters = getPositiveNumber(impactorDiameterInput, 'Diameter');
-    const velocityKmPerSecond = getPositiveNumber(impactorVelocityInput, 'Velocity');
     const name = impactorNameInput?.value?.trim() || 'Impactor';
 
     const massKg = computeAsteroidMassKg(diameterMeters, asteroidTypeConfig.densityKgPerM3);
+    const velocityKmPerSecond = computeImpactorVelocityKmPerSecond(
+      diameterMeters,
+      asteroidTypeConfig
+    );
 
     setImpactorFormState({ isSubmitting: true, hasActiveImpactor: false });
 
@@ -698,6 +703,20 @@ function computeAsteroidMassKg(diameterMeters, densityKgPerM3) {
   const radiusMeters = diameterMeters / 2;
   const volumeCubicMeters = (4 / 3) * Math.PI * radiusMeters * radiusMeters * radiusMeters;
   return volumeCubicMeters * densityKgPerM3;
+}
+
+function computeImpactorVelocityKmPerSecond(diameterMeters, asteroidTypeConfig) {
+  const { nominalVelocityKmPerSecond } = asteroidTypeConfig ?? {};
+
+  if (!Number.isFinite(nominalVelocityKmPerSecond) || nominalVelocityKmPerSecond <= 0) {
+    throw new Error('Selected asteroid type has invalid nominal velocity.');
+  }
+
+  const referenceDiameterMeters = 100;
+  const diameterScale = Math.cbrt(Math.max(diameterMeters, 1) / referenceDiameterMeters);
+  const velocity = nominalVelocityKmPerSecond * diameterScale;
+
+  return Math.max(0.1, velocity);
 }
 
 function handleImpactorReset(event) {
