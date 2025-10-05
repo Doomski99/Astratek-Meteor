@@ -1,210 +1,245 @@
 export const IMPACT_YIELD_CATEGORIES = [
   {
-    id: 'micro-airburst',
-    name: 'Micro Airburst',
-    rangeLabel: '< 0.01 Mt',
+    id: 'range-a',
+    name: 'Range A — City/Metropolitan Scale',
+    rangeLabel: '0.024 – 2.39 Mt',
     minYield: 0,
-    maxYield: 0.01,
+    maxYield: 2.390057361376673,
     description:
-      'Fragments disintegrate in the upper atmosphere. Damage is highly localised with mostly overpressure and sonic-boom effects.',
+      'Small asteroids or robust comet fragments that survive atmospheric entry. Effects stay within a metropolitan footprint, often as luminous airbursts with shockwaves that level city blocks and ignite spot fires.',
     effects: {
       fireball: {
-        title: 'Flash Luminosity',
+        title: 'Airburst Flash & Fireball',
         description:
-          'A brief incandescent flash high in the atmosphere. Objects directly beneath the burst may ignite, but surface vaporisation is unlikely.',
+          'Incandescent burst high in the atmosphere. 100 kJ/m² thermal fluence ignites combustibles within roughly 1–2 km, while most ground materials survive outside the inner kilometre.',
         severity: 'elevated'
       },
       'severe-blast': {
-        title: 'Shockwave Cone',
+        title: 'Severe Overpressure Core',
         description:
-          'Peak overpressure shatters windows and can dislodge roof tiles within a few kilometres of the entry track.',
+          '100 kPa shock front collapses buildings inside ~0.5–1.5 km. Reinforced structures fail without specialised sheltering.',
         severity: 'high'
       },
       'moderate-blast': {
-        title: 'Pressure Rumble',
+        title: 'Shockwave Footprint',
         description:
-          'Lighter structures sustain broken glass and superficial damage. Injuries mostly from flying debris.',
+          '5–15 km of glass-shattering 10 kPa overpressure; lighter construction suffers heavy damage and injuries from debris.',
         severity: 'elevated'
       },
       thermal: {
-        title: 'Thermal Glare',
+        title: 'Thermal Pulse',
         description:
-          'Short-lived radiant heating comparable to standing near a lightning strike. Outdoor observers may experience temporary vision loss.',
+          '20 kJ/m² out to ~3 km causes third-degree burns and spot fires; 2–10 kJ/m² carries painful burns as far as ~10 km.',
         severity: 'area'
       }
     }
   },
   {
-    id: 'urban-damage',
-    name: 'Urban-Level Event',
-    rangeLabel: '0.01 – 0.1 Mt',
-    minYield: 0.01,
-    maxYield: 0.1,
+    id: 'range-b',
+    name: 'Range B — Regional Scale',
+    rangeLabel: '2.39 – 239 Mt',
+    minYield: 2.390057361376673,
+    maxYield: 239.0057361376673,
     description:
-      'Capable of levelling a dense urban core. Comparable to the largest historical nuclear detonations, though focused in a single strike.',
+      'Regional devastation comparable to scaled-up Barringer or Tunguska-class events. Craters span kilometres, stratospheric dust darkens skies, and hurricanes of debris sweep entire regions.',
     effects: {
       fireball: {
-        title: 'Urban Core Fireball',
+        title: 'Regional Fireball & Crater Furnace',
         description:
-          'Total annihilation inside the innermost zone. Reinforced concrete collapses and the ground can partially vitrify.',
-        severity: 'critical'
-      },
-      'severe-blast': {
-        title: 'Total Structural Collapse',
-        description:
-          'Overpressure above 20 psi erases most buildings within a several-kilometre radius. Survival inside unshielded structures is unlikely.',
+          'Impact excavates 1–5 km wide craters with molten floors. Radiant energy vaporises ground materials near the rim.',
         severity: 'high'
       },
-      'moderate-blast': {
-        title: 'Severe Damage Belt',
-        description:
-          'Residential neighbourhoods and light industry are flattened. Fires ignite across the blast perimeter.',
-        severity: 'elevated'
-      },
-      thermal: {
-        title: 'Blistering Thermal Pulse',
-        description:
-          'Third-degree burns on exposed skin and widespread ignition of vegetation out to dozens of kilometres.',
-        severity: 'area'
-      }
-    }
-  },
-  {
-    id: 'regional-catastrophe',
-    name: 'Regional Catastrophe',
-    rangeLabel: '0.1 – 1 Mt',
-    minYield: 0.1,
-    maxYield: 1,
-    description:
-      'A blast this large can wipe out a metropolitan area and deliver hurricane-force winds and heat far beyond the fireball.',
-    effects: {
-      fireball: {
-        title: 'Surface Vaporisation',
-        description:
-          'Ground zero is excavated to bedrock. Soil, asphalt, and water instantly vaporise leaving a glowing crater.',
-        severity: 'critical'
-      },
       'severe-blast': {
-        title: 'Unsurvivable Blast Core',
+        title: 'Total Destruction Zone',
         description:
-          'Overpressure above 30 psi flattens everything within a 10–20 km radius. Reinforced shelters fail without specialised engineering.',
+          '100 kPa overpressure expands to roughly 2–5 km, erasing reinforced structures and flattening forests.',
         severity: 'critical'
       },
       'moderate-blast': {
-        title: 'Regional Devastation',
+        title: 'Regional Shock Front',
         description:
-          'Winds exceeding 200 km/h topple buildings across a major region. Steel-frame towers experience catastrophic failures.',
+          '35 kPa winds devastate towns within 5–15 km; 10 kPa pulses break windows and topple weak buildings out to 15–40 km.',
         severity: 'high'
       },
       thermal: {
-        title: 'Mass Firestorm Footprint',
+        title: 'Regional Thermal Curtain',
         description:
-          'Thermal radiation ignites city blocks and forests alike, creating self-sustaining firestorms tens of kilometres from the impact.',
+          '100 kJ/m² ignition radii stretch 2–4 km; 20 kJ/m² burns reach 10–20 km, creating widespread wildfires and flash burns.',
         severity: 'area'
       }
     }
   },
   {
-    id: 'continental-impact',
-    name: 'Continental Impact',
-    rangeLabel: '1 – 10 Mt',
-    minYield: 1,
-    maxYield: 10,
+    id: 'range-c',
+    name: 'Range C — Continental Scale',
+    rangeLabel: '239 – 23,900 Mt',
+    minYield: 239.0057361376673,
+    maxYield: 23900.57361376673,
     description:
-      'Comparable to the Tunguska or Chelyabinsk events scaled up, delivering continental-scale devastation and intense atmospheric effects.',
+      'Continental-scale catastrophe reminiscent of Chicxulub-class impacts. Blast, thermal, tsunami, and seismic footprints engulf nations while ejecta blankets fall hundreds of kilometres away.',
     effects: {
       fireball: {
-        title: 'Crater Furnace',
+        title: 'Multi-Kilometre Fireball',
         description:
-          'A crater kilometres wide is left incandescent. The fireball reaches the upper atmosphere and remains luminous for minutes.',
+          '100 kJ/m² ignition spans 10–15 km; molten ejecta blankets nearby landscapes and seeds firestorms across continents.',
         severity: 'critical'
       },
       'severe-blast': {
-        title: 'Super-Hurricane Core',
+        title: 'Nation-Level Destruction',
         description:
-          'Mach-level winds and pressure waves destroy hardened facilities out to several hundred kilometres.',
+          '100 kPa ring stretches 10–20 km; 35 kPa winds flatten cities 30–60 km away and trigger continent-wide infrastructure collapse.',
         severity: 'critical'
       },
       'moderate-blast': {
-        title: 'Continental Shock Front',
+        title: 'Continental Shockwaves',
         description:
-          'Rail lines, highways, and infrastructure collapse across an entire country-sized area. Windows shatter across multiple nations.',
-        severity: 'high'
+          '10 kPa overpressure reverberates 100–200 km, breaking windows and damaging structures across multiple countries.',
+        severity: 'critical'
       },
       thermal: {
-        title: 'Skywide Thermal Curtain',
+        title: 'Continental Firestorms',
         description:
-          'Cities well outside the blast radius experience flash burns and ignition of anything flammable that is not shielded.',
+          '20 kJ/m² burns extend 30–60 km; 2–10 kJ/m² heating reaches hundreds of kilometres, igniting forests and cities alike.',
         severity: 'area'
       }
     }
   },
   {
-    id: 'global-cataclysm',
-    name: 'Global Cataclysm',
-    rangeLabel: '10 – 100 Mt',
-    minYield: 10,
-    maxYield: 100,
+    id: 'range-d',
+    name: 'Range D — Global Scale',
+    rangeLabel: '23,900 – 2.39 million Mt',
+    minYield: 23900.57361376673,
+    maxYield: 2390057.361376673,
     description:
-      'Generates world-spanning atmospheric disturbances, tsunamis, and weeks of climatic disruption. Comparable to the largest nuclear devices ever conceived.',
+      'Global extinction-class events. Atmosphere-shattering blasts, ocean-basin tsunamis, and impact winters plunge the planet into years of darkness and biospheric collapse.',
     effects: {
       fireball: {
-        title: 'Megacrater Inferno',
+        title: 'Hemisphere-Spanning Fireball',
         description:
-          'An incandescent cavity tens of kilometres wide opens. Surrounding rock is liquefied or vaporised.',
+          'Ignition radii of 30–50 km; ejecta re-entry bakes the globe and kindles worldwide wildfires.',
         severity: 'critical'
       },
       'severe-blast': {
-        title: 'Planetary Blast Zone',
+        title: 'Scoured Hemispheres',
         description:
-          'Urban areas within several hundred kilometres are erased. Mountain ranges experience massive landslides.',
+          '100 kPa destruction reaches 50–100 km; 35 kPa winds shred infrastructure 200–400 km out, with 10 kPa pulses travelling 500–1000 km.',
         severity: 'critical'
       },
       'moderate-blast': {
-        title: 'Worldwide Shockwaves',
+        title: 'Planetary Shockwaves',
         description:
-          'Atmospheric pressure waves circle the planet multiple times, toppling weak structures on other continents.',
-        severity: 'high'
+          'Atmospheric waves and seismic shocks circle the globe, toppling weak structures on distant continents within an hour.',
+        severity: 'critical'
       },
       thermal: {
-        title: 'Hemisphere-Wide Firestorms',
+        title: 'Global Thermal Pulse',
         description:
-          'Firestorms merge across regions; airborne particulates dim sunlight leading to crop failures.',
+          'Firestorms burn continents and ejecta-heated skies ignite biomass worldwide, injecting soot that drives impact winter.',
         severity: 'area'
       }
     }
   },
   {
-    id: 'extinction-level',
-    name: 'Extinction-Level Impact',
-    rangeLabel: '≥ 100 Mt',
-    minYield: 100,
-    maxYield: Infinity,
+    id: 'range-e1',
+    name: 'Range E1 — Global Catastrophe / Near-Planet Killer',
+    rangeLabel: '2.39 – 23.9 million Mt',
+    minYield: 2390057.361376673,
+    maxYield: 23900573.61376673,
     description:
-      'Comparable to the Chicxulub impactor. Causes mass extinctions, megatsunamis, and a years-long impact winter.',
+      'Upper-extreme extinction events. Multiple continents are simultaneously devastated and the biosphere nears total collapse, though Earth’s spin and orbit remain essentially unchanged.',
     effects: {
       fireball: {
-        title: 'Global Fireball',
+        title: 'Transcontinental Fireball',
         description:
-          'Fireball pierces the upper atmosphere and radiates enough energy to ignite forests on the opposite side of the planet.',
+          '100 kPa destruction radii climb to 100–200 km with global firestorms from re-entering ejecta blanketing the planet.',
         severity: 'critical'
       },
       'severe-blast': {
-        title: 'Scoured Hemisphere',
+        title: 'Continent-Spanning Shockwaves',
         description:
-          'Everything within thousands of kilometres is pulverised or ejected into space. Continental crust is excavated.',
+          '35 kPa overpressure rolls 300–600 km and 10 kPa pulses travel 1000–2000 km, directly battering multiple continents.',
         severity: 'critical'
       },
       'moderate-blast': {
         title: 'Global Seismic Upheaval',
         description:
-          'Megaquakes, volcanic activation, and tsunamis reshape coastlines around the world.',
+          'Mw 10+ shaking rings the planet for months, triggering volcanism and landslides across every margin.',
         severity: 'critical'
       },
       thermal: {
-        title: 'Worldwide Thermal Pulse',
+        title: 'Guaranteed Global Firestorms',
         description:
-          'Entire biosphere experiences ignition and combustion. Atmospheric chemistry is fundamentally altered.',
+          'Thermal radiation guarantees worldwide conflagrations; oceans flash-boil near the impact and skies glow from ejecta.',
+        severity: 'area'
+      }
+    }
+  },
+  {
+    id: 'range-e2',
+    name: 'Range E2 — Planet Killer',
+    rangeLabel: '23.9 million – 2.39 billion Mt',
+    minYield: 23900573.61376673,
+    maxYield: 2390057361.376673,
+    description:
+      'Planet-sterilising impacts that melt significant portions of the crust, boil oceans, and alter Earth’s day length or axial tilt. Recovery of complex life becomes effectively impossible.',
+    effects: {
+      fireball: {
+        title: 'Global Vaporisation Flash',
+        description:
+          'Fireball envelopes hundreds of kilometres instantly and radiative afterglow heats the entire globe, boiling nearby oceans.',
+        severity: 'critical'
+      },
+      'severe-blast': {
+        title: 'Worldwide Blast Front',
+        description:
+          'Shock fronts deliver 35 kPa devastation 1500–3000 km away while atmospheric compression becomes near-global.',
+        severity: 'critical'
+      },
+      'moderate-blast': {
+        title: 'Crust-Fracturing Seismicity',
+        description:
+          'Mw 11–12 shaking fractures the crust planet-wide and drives mantle melting with secondary impacts from global ejecta.',
+        severity: 'critical'
+      },
+      thermal: {
+        title: 'Oceans Boil & Atmosphere Heats',
+        description:
+          'Thermal flux vaporises the upper ocean, superheats the atmosphere, and ensures sustained global ignition.',
+        severity: 'area'
+      }
+    }
+  },
+  {
+    id: 'range-e3',
+    name: 'Range E3 — World-Former / Planetary Disruption',
+    rangeLabel: '> 2.39 billion Mt',
+    minYield: 2390057361.376673,
+    maxYield: Infinity,
+    description:
+      'Planet-altering collisions akin to the Moon-forming Theia impact. Earth’s crust, oceans, and atmosphere are vaporised, with mass exchanged into space and the planet’s rotation and tilt reset.',
+    effects: {
+      fireball: {
+        title: 'Global Magma Ocean',
+        description:
+          'Impact flash melts the crust and vaporises oceans worldwide; discrete fireball radii lose meaning.',
+        severity: 'critical'
+      },
+      'severe-blast': {
+        title: 'Hemisphere-Stripping Shockwaves',
+        description:
+          'Shock energy scours hemispheres simultaneously and ejects vast amounts of mass into orbit or space.',
+        severity: 'critical'
+      },
+      'moderate-blast': {
+        title: 'Planetary Reshaping',
+        description:
+          'Seismic energy liquefies the lithosphere, mixes mantle layers, and can spawn moons or rings from expelled debris.',
+        severity: 'critical'
+      },
+      thermal: {
+        title: 'Atmospheric Loss & Reformation',
+        description:
+          'Atmosphere is partly lost, then reaccretes from vaporised rock and impactor material as the planet cools.',
         severity: 'area'
       }
     }
