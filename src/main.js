@@ -697,6 +697,8 @@ function handleImpactorSubmit(event) {
       asteroidTypeConfig
     );
 
+    clearImpactorFocus();
+
     setImpactorFormState({ isSubmitting: true, hasActiveImpactor: false });
 
     const timing = getCurrentSimulationTiming();
@@ -713,12 +715,14 @@ function handleImpactorSubmit(event) {
       { currentOrbitFrame: timing.orbitFrames }
     );
 
+    setImpactorViewTarget(summary.name);
     updateImpactorResults({ ...summary, timeToImpactSeconds: summary.timeToImpactSeconds });
     setImpactorFeedback('Impactor launched toward the selected impact zone.', 'success');
     setImpactorFormState({ hasActiveImpactor: true });
   } catch (error) {
     console.error('Failed to create impactor', error);
     clearImpactorResults();
+    removeImpactorViewTarget();
     setImpactorFormState({ hasActiveImpactor: false });
     setImpactorFeedback(error.message || 'Unable to create impactor.', 'error');
   }
@@ -757,7 +761,9 @@ function handleImpactorReset(event) {
   }
 
   impactorManagerInstance.reset();
+  clearImpactorFocus();
   clearImpactorResults();
+  removeImpactorViewTarget();
   setImpactorFormState({ hasActiveImpactor: false });
   setImpactorFeedback('Impactor cleared. Enter new parameters to generate another trajectory.', 'info');
 }
@@ -780,6 +786,7 @@ controls.addEventListener('start', () => {
   isManualOrbiting = true;
   isUserOrbitControlsActive = true;
   isMovingTowardsAsteroid = false;
+  isMovingTowardsImpactor = false;
   isMovingTowardsPlanet = false;
   isZoomingOut = false;
 });
@@ -816,6 +823,14 @@ function setActiveViewTarget(id) {
   });
 }
 
+const IMPACTOR_TARGET_ID = 'impactor';
+
+function formatImpactorViewTargetLabel(name) {
+  const trimmed = typeof name === 'string' ? name.trim() : '';
+  const baseLabel = trimmed.length > 0 ? trimmed : 'Custom Impactor';
+  return /impactor/i.test(baseLabel) ? baseLabel : `${baseLabel} (Impactor)`;
+}
+
 function getAsteroidViewTargetId(asteroidId) {
   return `asteroid:${asteroidId}`;
 }
@@ -837,6 +852,37 @@ function addAsteroidViewTarget(entry) {
 
   viewTargetListElement.appendChild(item);
   viewTargetItems.set(targetId, item);
+}
+
+function setImpactorViewTarget(name) {
+  if (!viewTargetListElement) {
+    return;
+  }
+
+  const label = formatImpactorViewTargetLabel(name);
+  let item = viewTargetItems.get(IMPACTOR_TARGET_ID);
+  if (!item) {
+    item = document.createElement('li');
+    item.className = 'view-panel__item';
+    item.dataset.targetId = IMPACTOR_TARGET_ID;
+    viewTargetListElement.appendChild(item);
+  }
+
+  item.textContent = label;
+  viewTargetItems.set(IMPACTOR_TARGET_ID, item);
+}
+
+function removeImpactorViewTarget() {
+  const item = viewTargetItems.get(IMPACTOR_TARGET_ID);
+  if (item?.parentElement) {
+    item.parentElement.removeChild(item);
+  }
+
+  viewTargetItems.delete(IMPACTOR_TARGET_ID);
+
+  if (activeViewTargetId === IMPACTOR_TARGET_ID) {
+    setActiveViewTarget('earth');
+  }
 }
 
 function removeAsteroidViewTarget(entry) {
@@ -903,6 +949,11 @@ if (viewTargetListElement) {
     const { targetId } = item.dataset;
     if (targetId === 'earth') {
       focusEarthView();
+      return;
+    }
+
+    if (targetId === IMPACTOR_TARGET_ID) {
+      focusImpactor();
       return;
     }
 
@@ -1098,6 +1149,11 @@ const asteroidWorkVector = new THREE.Vector3();
 const previousControlsTarget = new THREE.Vector3();
 const controlsTargetDelta = new THREE.Vector3();
 const earthWorldPosition = new THREE.Vector3();
+const impactorFocusPoint = new THREE.Vector3();
+const impactorCameraTarget = new THREE.Vector3();
+let focusedImpactorMesh = null;
+let impactorCameraOffset = null;
+let isMovingTowardsImpactor = false;
 
 const asteroidEntries = [];
 const asteroidEntryMap = new Map();
@@ -1696,6 +1752,16 @@ function clearAsteroidFocus() {
   }
 }
 
+function clearImpactorFocus() {
+  if (!focusedImpactorMesh) {
+    return;
+  }
+
+  focusedImpactorMesh = null;
+  impactorCameraOffset = null;
+  isMovingTowardsImpactor = false;
+}
+
 async function activateAsteroid(entry) {
   const id = entry.data.id;
   asteroidPanel?.setTracked(id, true);
@@ -1772,6 +1838,7 @@ function handleAsteroidToggle(id, shouldActivate) {
 
 function focusAsteroidEntry(entry) {
   clearAsteroidFocus();
+  clearImpactorFocus();
   focusedAsteroidEntry = entry;
   activeAsteroidIds.add(entry.data.id);
   asteroidPanel?.setFocused(entry.data.id);
@@ -1806,6 +1873,7 @@ async function focusAsteroidById(id) {
 
 function focusEarthView() {
   clearAsteroidFocus();
+  clearImpactorFocus();
   setActiveViewTarget('earth');
   const earthTarget = typeof earth !== 'undefined' ? earth.planet : null;
   setCameraZoomLimitsForObject(earthTarget, 6.4);
@@ -1814,6 +1882,39 @@ function focusEarthView() {
   isMovingTowardsAsteroid = false;
   isMovingTowardsPlanet = false;
   isZoomingOut = true;
+}
+
+function focusImpactor() {
+  if (!impactorManagerInstance?.getActiveImpactorMesh) {
+    return;
+  }
+
+  const mesh = impactorManagerInstance.getActiveImpactorMesh();
+  if (!mesh) {
+    return;
+  }
+
+  closeInfoNoZoomOut();
+  selectedPlanet = null;
+  isMovingTowardsPlanet = false;
+  isZoomingOut = false;
+
+  clearAsteroidFocus();
+  clearImpactorFocus();
+
+  setCameraZoomLimitsForObject(mesh, 2);
+
+  impactorCameraOffset = computeAsteroidCameraOffset({ mesh });
+  mesh.getWorldPosition(impactorFocusPoint);
+  impactorCameraTarget.copy(impactorFocusPoint).add(impactorCameraOffset);
+  controls.target.copy(impactorFocusPoint);
+
+  focusedImpactorMesh = mesh;
+  isManualOrbiting = false;
+  isMovingTowardsAsteroid = false;
+  isMovingTowardsImpactor = true;
+
+  setActiveViewTarget(IMPACTOR_TARGET_ID);
 }
 
 let asteroidInitializationPromise = null;
@@ -2026,7 +2127,39 @@ function animate(now = performance.now()) {
       asteroidCameraTarget.copy(asteroidFocusPoint).add(asteroidCameraOffset);
       camera.position.lerp(asteroidCameraTarget, 0.02);
     }
-  } else if (!selectedPlanet && !isMovingTowardsPlanet && !isMovingTowardsAsteroid && !isZoomingOut) {
+  } else if (focusedImpactorMesh) {
+    focusedImpactorMesh.getWorldPosition(impactorFocusPoint);
+
+    const offset = impactorCameraOffset ?? computeAsteroidCameraOffset({ mesh: focusedImpactorMesh });
+    if (!impactorCameraOffset) {
+      impactorCameraOffset = offset;
+    }
+
+    const shouldUpdateImpactorTarget = !isUserOrbitControlsActive || isMovingTowardsImpactor;
+    let impactorTargetUpdated = false;
+
+    if (shouldUpdateImpactorTarget) {
+      previousControlsTarget.copy(controls.target);
+      controls.target.lerp(impactorFocusPoint, 0.15);
+      impactorTargetUpdated = true;
+    }
+
+    if (isMovingTowardsImpactor) {
+      impactorCameraTarget.copy(impactorFocusPoint).add(offset);
+    } else if (isManualOrbiting && impactorTargetUpdated) {
+      controlsTargetDelta.subVectors(controls.target, previousControlsTarget);
+      camera.position.add(controlsTargetDelta);
+    } else if (!isManualOrbiting) {
+      impactorCameraTarget.copy(impactorFocusPoint).add(offset);
+      camera.position.lerp(impactorCameraTarget, 0.02);
+    }
+  } else if (
+    !selectedPlanet &&
+    !isMovingTowardsPlanet &&
+    !isMovingTowardsAsteroid &&
+    !isMovingTowardsImpactor &&
+    !isZoomingOut
+  ) {
     if (!isUserOrbitControlsActive) {
       previousControlsTarget.copy(controls.target);
       controls.target.lerp(earthDefaultTargetPosition, 0.1);
@@ -2042,6 +2175,8 @@ function animate(now = performance.now()) {
 
   if (focusedAsteroidEntry && focusedAsteroidEntry.mesh) {
     outlinePass.selectedObjects = [focusedAsteroidEntry.mesh];
+  } else if (focusedImpactorMesh) {
+    outlinePass.selectedObjects = [focusedImpactorMesh];
   } else {
     outlinePass.selectedObjects = [];
   }
@@ -2058,6 +2193,11 @@ function animate(now = performance.now()) {
     camera.position.lerp(asteroidCameraTarget, 0.03);
     if (camera.position.distanceTo(asteroidCameraTarget) < 1) {
       isMovingTowardsAsteroid = false;
+    }
+  } else if (isMovingTowardsImpactor) {
+    camera.position.lerp(impactorCameraTarget, 0.03);
+    if (camera.position.distanceTo(impactorCameraTarget) < 1) {
+      isMovingTowardsImpactor = false;
     }
   } else if (isZoomingOut) {
     controls.target.lerp(earthDefaultTargetPosition, 0.1);

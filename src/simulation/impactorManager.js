@@ -1383,11 +1383,21 @@ function createImpactorManager({ scene, earthMesh, earthOrbitElements }) {
     return getSnapshot();
   }
 
+  function getActiveImpactorMesh() {
+    return currentState?.mesh ?? null;
+  }
+
+  function getActiveImpactorName() {
+    return currentState?.name ?? null;
+  }
+
   return {
     spawn,
     reset,
     update,
-    getSnapshot
+    getSnapshot,
+    getActiveImpactorMesh,
+    getActiveImpactorName
   };
 }
 
