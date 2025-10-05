@@ -8,6 +8,7 @@ Monitor asteroids and evaluate its impact. Astratek Meteor is an interactive Web
 - **Immersive solar system renderer** – A custom Three.js scene configures orbit controls, bloom, and outline passes to frame planets, moons, and lighting within a responsive renderer.
 - **Orbital-mechanics driven animation** – A reusable simulation clock advances per-body spin and orbit channels while keeping time controls in sync with the UI.
 - **Asteroid catalogue & telemetry** – Hundreds of asteroid entries are parsed from CSV data, converted into Keplerian elements, and updated in real time, complete with velocity readouts and camera targets.
+- **ONNX-powered risk classification** – Each tracked asteroid is automatically scored as a Near-Earth Object (NEO) and Potentially Hazardous Asteroid (PHA) using the bundled ONNX model, keeping the UI badges in sync with model predictions.
 - **Custom impact analysis** – Users can launch bespoke impactors, view yield categories, and inspect the predicted blast zones and effect descriptions through dedicated panels and overlays.
 - **UI panels for exploration** – Track asteroids, switch view targets, and inspect impact telemetry with modular UI controllers that wire DOM interactions to simulation state.
 
@@ -32,7 +33,7 @@ Monitor asteroids and evaluate its impact. Astratek Meteor is an interactive Web
    npm run build
    ```
 
-> **Note:** The asteroid catalogue is loaded from `static/data/asteroids.csv`. When hosting the production build, ensure the `static` directory is served alongside the compiled assets so the dataset and textures remain accessible.
+> **Note:** The asteroid catalogue is loaded from `static/data/asteroids.csv`. When hosting the production build, ensure the `static` directory is served alongside the compiled assets so the dataset, textures, and ONNX classification assets remain accessible.
 
 ## Project Documentation
 A detailed breakdown of the codebase structure, key modules, and data flow lives in [`docs/PROJECT_STRUCTURE.md`](docs/PROJECT_STRUCTURE.md).
