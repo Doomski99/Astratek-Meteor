@@ -1,3 +1,120 @@
+function createBadge({ label, value, probability, positiveLabel, negativeLabel, tonePositive, toneNegative }) {
+  const badge = document.createElement('span');
+  badge.className = 'asteroid-badge';
+
+  let toneClass = 'asteroid-badge--unknown';
+  let valueLabel = 'Unknown';
+
+  if (value === true) {
+    toneClass = tonePositive ?? 'asteroid-badge--positive';
+    valueLabel = positiveLabel ?? 'Yes';
+  } else if (value === false) {
+    toneClass = toneNegative ?? 'asteroid-badge--neutral';
+    valueLabel = negativeLabel ?? 'No';
+  }
+
+  if (toneClass) {
+    badge.classList.add(toneClass);
+  }
+
+  const probabilityText = Number.isFinite(probability)
+    ? ` (${Math.round(probability * 100)}%)`
+    : '';
+
+  badge.textContent = `${label} · ${valueLabel}${probabilityText}`;
+  return badge;
+}
+
+function renderClassification(container, data = {}) {
+  if (!container) {
+    return;
+  }
+
+  container.innerHTML = '';
+
+  const neoBadge = createBadge({
+    label: 'NEO',
+    value: data.isNeo,
+    probability: data.neoProbability,
+    positiveLabel: 'Yes',
+    negativeLabel: 'No',
+    tonePositive: 'asteroid-badge--positive',
+    toneNegative: 'asteroid-badge--neutral'
+  });
+
+  const phaBadge = createBadge({
+    label: 'PHA',
+    value: data.isPhaHazardous,
+    probability: data.phaProbability,
+    positiveLabel: 'Hazard',
+    negativeLabel: 'Safe',
+    tonePositive: 'asteroid-badge--hazard',
+    toneNegative: 'asteroid-badge--neutral'
+  });
+
+  container.appendChild(neoBadge);
+  container.appendChild(phaBadge);
+}
+
+function setMetaText(metaElement, data) {
+  if (!metaElement) {
+    return;
+  }
+
+  const orbit = data.orbit ?? {};
+  const yieldText = Number.isFinite(data.tntYieldMt) ? data.tntYieldMt : 'N/A';
+  const semiMajorAxisText = Number.isFinite(orbit.semiMajorAxis)
+    ? orbit.semiMajorAxis.toFixed(1)
+    : 'N/A';
+  const eccentricityText = Number.isFinite(orbit.eccentricity)
+    ? orbit.eccentricity.toFixed(3)
+    : 'N/A';
+  const inclinationText = Number.isFinite(orbit.inclination)
+    ? orbit.inclination.toFixed(2)
+    : 'N/A';
+
+  metaElement.textContent = `Yield: ${yieldText} Mt | a=${semiMajorAxisText} | e=${eccentricityText} | i=${inclinationText}°`;
+}
+
+function createListItem(entry, { onToggle }) {
+  const { data } = entry;
+  const item = document.createElement('li');
+  item.className = 'asteroid-panel__item';
+  item.dataset.asteroidId = data.id;
+
+  const headerRow = document.createElement('div');
+  headerRow.className = 'asteroid-panel__row';
+
+  const nameElement = document.createElement('span');
+  nameElement.className = 'asteroid-panel__name';
+  nameElement.textContent = data.name;
+
+  const badgesContainer = document.createElement('div');
+  badgesContainer.className = 'asteroid-panel__badges';
+
+  headerRow.appendChild(nameElement);
+  headerRow.appendChild(badgesContainer);
+
+  const metaElement = document.createElement('span');
+  metaElement.className = 'asteroid-panel__meta';
+
+  item.appendChild(headerRow);
+  item.appendChild(metaElement);
+
+  item.addEventListener('click', () => {
+    const isActive = item.classList.contains('asteroid-panel__item--active');
+    const nextState = !isActive;
+    if (typeof onToggle === 'function') {
+      onToggle(data.id, nextState);
+    }
+  });
+
+  setMetaText(metaElement, data);
+  renderClassification(badgesContainer, data);
+
+  return item;
+}
+
 function initAsteroidPanel(entries, { onToggle } = {}) {
   const listElement = document.getElementById('asteroidList');
   const panelElement = document.getElementById('asteroidListPanel');
@@ -18,34 +135,9 @@ function initAsteroidPanel(entries, { onToggle } = {}) {
     listElement.innerHTML = '';
 
     entries.forEach(entry => {
-      const { data } = entry;
-      const orbit = data.orbit ?? {};
-      const yieldText = Number.isFinite(data.tntYieldMt) ? data.tntYieldMt : 'N/A';
-      const semiMajorAxisText = Number.isFinite(orbit.semiMajorAxis)
-        ? orbit.semiMajorAxis.toFixed(1)
-        : 'N/A';
-      const eccentricityText = Number.isFinite(orbit.eccentricity)
-        ? orbit.eccentricity.toFixed(3)
-        : 'N/A';
-      const inclinationText = Number.isFinite(orbit.inclination)
-        ? orbit.inclination.toFixed(2)
-        : 'N/A';
-      const item = document.createElement('li');
-      item.className = 'asteroid-panel__item';
-      item.dataset.asteroidId = data.id;
-      item.innerHTML =
-        `<span class='asteroid-panel__name'>${data.name}</span>` +
-        `<span class='asteroid-panel__meta'>Yield: ${yieldText} Mt | a=${semiMajorAxisText} | e=${eccentricityText} | i=${inclinationText}°</span>`;
-      item.addEventListener('click', () => {
-        const isActive = activeIds.has(data.id);
-        const nextState = !isActive;
-        if (typeof onToggle === 'function') {
-          onToggle(data.id, nextState);
-        }
-      });
-
+      const item = createListItem(entry, { onToggle });
       listElement.appendChild(item);
-      itemMap.set(data.id, item);
+      itemMap.set(entry.data.id, item);
     });
   }
 
@@ -106,7 +198,33 @@ function initAsteroidPanel(entries, { onToggle } = {}) {
     setTracked,
     setFocused,
     clearFocus,
-    getItemElement
+    getItemElement,
+    addEntry(entry) {
+      if (!listElement || !entry?.data?.id) {
+        return;
+      }
+
+      const item = createListItem(entry, { onToggle });
+      listElement.appendChild(item);
+      itemMap.set(entry.data.id, item);
+    },
+    refreshEntry(entry) {
+      const item = entry?.data?.id ? itemMap.get(entry.data.id) : null;
+      if (!item) {
+        return;
+      }
+
+      const badgesContainer = item.querySelector('.asteroid-panel__badges');
+      const metaElement = item.querySelector('.asteroid-panel__meta');
+      const nameElement = item.querySelector('.asteroid-panel__name');
+
+      if (nameElement) {
+        nameElement.textContent = entry.data.name ?? entry.data.id;
+      }
+
+      setMetaText(metaElement, entry.data);
+      renderClassification(badgesContainer, entry.data);
+    }
   };
 }
 

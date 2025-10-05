@@ -52,11 +52,12 @@ import {
   createImpactOverlayMesh,
   disposeObject
 } from './simulation/asteroids.js';
-import { propagateKepler } from './simulation/kepler.js';
+import { propagateKepler, createKeplerElements } from './simulation/kepler.js';
 import { orbitPositionToScene, estimateOrbitalVelocity } from './simulation/orbitUtils.js';
 import { updateEarthVelocity } from './simulation/referenceFrames.js';
-import { EARTH_RADIUS_SCENE_UNITS } from './simulation/scales.js';
+import { AU_TO_SCENE_UNITS, EARTH_RADIUS_SCENE_UNITS, FRAMES_PER_SIMULATION_DAY } from './simulation/scales.js';
 import { createImpactorManager } from './simulation/impactorManager.js';
+import { classifyAsteroid } from './model/neoClassifier.js';
 
 const cubeTextureLoader = new THREE.CubeTextureLoader();
 const textureLoader = new THREE.TextureLoader();
@@ -119,6 +120,8 @@ const impactMapStatusBaseText = impactMapStatusElement?.textContent ?? 'Awaiting
 const impactMapCaptionBaseText = impactMapCaptionElement?.textContent ?? '';
 const kineticMitigationButton = document.getElementById('kineticMitigationButton');
 const kineticMitigationStatus = document.querySelector('[data-kinetic-status]');
+const asteroidGeneratorButton = document.getElementById('generateAsteroidButton');
+const asteroidGeneratorStatusElement = document.querySelector('[data-asteroid-generator-status]');
 
 const ASTEROID_TYPES = {
   M: {
@@ -137,6 +140,184 @@ const ASTEROID_TYPES = {
     nominalVelocityKmPerSecond: 15
   }
 };
+
+const DEMO_ASTEROID_PREFIX = 'Demo Asteroid';
+const JOULES_PER_MEGATON_TNT = 4.184e15;
+let demoAsteroidCounter = 0;
+
+function randomBetween(min, max) {
+  return min + Math.random() * (max - min);
+}
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function wrapDegrees(value) {
+  const raw = Number.isFinite(value) ? value : 0;
+  return ((raw % 360) + 360) % 360;
+}
+
+function estimateMeanMotionDegPerDay(semiMajorAxisAu) {
+  const axis = Math.max(semiMajorAxisAu, 0.2);
+  const earthMeanMotion = 0.9856076686;
+  const keplerFactor = 1 / Math.pow(axis, 1.5);
+  const variation = randomBetween(0.9, 1.1);
+  return clamp(earthMeanMotion * keplerFactor * variation, 0.05, 6);
+}
+
+function estimateTntYieldMegatons(diameterMeters) {
+  const radius = Math.max(diameterMeters, 20) / 2;
+  const density = 2800; // kg/m^3, typical stony asteroid
+  const volume = (4 / 3) * Math.PI * radius * radius * radius;
+  const mass = volume * density;
+  const velocity = 19_000; // m/s, representative impact velocity
+  const energyJoules = 0.5 * mass * velocity * velocity;
+  const megatons = energyJoules / JOULES_PER_MEGATON_TNT;
+  const rounded = Math.round(megatons * 10) / 10;
+  return clamp(rounded, 0, 50000);
+}
+
+function computeVisualScaleFromDiameter(diameterMeters) {
+  const normalized = clamp(diameterMeters / 1500, 0, 1);
+  return 0.025 + normalized * 0.075;
+}
+
+function computeAbsoluteMagnitude(diameterMeters, albedo) {
+  const safeDiameterKm = Math.max(diameterMeters / 1000, 0.01);
+  const safeAlbedo = clamp(albedo, 0.02, 0.6);
+  const base = 1329 / (safeDiameterKm * Math.sqrt(safeAlbedo));
+  const magnitude = 5 * Math.log10(base);
+  return clamp(magnitude, 12, 28);
+}
+
+function buildDemoAsteroidFeatures() {
+  const diameter = randomBetween(180, 1800);
+  const albedo = randomBetween(0.05, 0.35);
+  const semiMajorAxisAu = randomBetween(0.8, 2.6);
+  const eccentricity = randomBetween(0.05, 0.55);
+
+  const features = {
+    diameter,
+    diameter_sigma: diameter * randomBetween(0.04, 0.12),
+    e: eccentricity,
+    a: semiMajorAxisAu,
+    i: randomBetween(0, 35),
+    om: wrapDegrees(randomBetween(0, 360)),
+    w: wrapDegrees(randomBetween(0, 360)),
+    ma: wrapDegrees(randomBetween(0, 360)),
+    n: estimateMeanMotionDegPerDay(semiMajorAxisAu),
+    sigma_e: randomBetween(0.0002, 0.02),
+    sigma_a: randomBetween(0.0001, 0.01),
+    sigma_i: randomBetween(0.01, 0.4),
+    sigma_om: randomBetween(0.01, 1.2),
+    sigma_w: randomBetween(0.01, 1.2),
+    sigma_ma: randomBetween(0.01, 1.5),
+    sigma_n: randomBetween(0.0001, 0.01),
+    H_sigma: randomBetween(0.05, 0.3),
+    moid: randomBetween(0.02, 0.45)
+  };
+
+  features.H = computeAbsoluteMagnitude(diameter, albedo);
+
+  return features;
+}
+
+function createDemoAsteroidEntryFromFeatures(features, classification) {
+  const id = `demo-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+  demoAsteroidCounter += 1;
+  const name = `${DEMO_ASTEROID_PREFIX} ${demoAsteroidCounter}`;
+
+  const meanMotionRadiansPerFrame = ((features.n ?? 0) * Math.PI) / 180 / FRAMES_PER_SIMULATION_DAY;
+  const orbit = {
+    semiMajorAxis: (features.a ?? 0) * AU_TO_SCENE_UNITS,
+    eccentricity: features.e ?? 0,
+    inclination: features.i ?? 0,
+    longitudeOfAscendingNode: features.om ?? 0,
+    argumentOfPeriapsis: features.w ?? 0,
+    meanAnomalyAtEpoch: features.ma ?? 0,
+    meanMotion: meanMotionRadiansPerFrame,
+    epoch: orbitTimeChannel?.getValue ? orbitTimeChannel.getValue() : 0
+  };
+
+  const entry = {
+    data: {
+      id,
+      name,
+      orbit,
+      visualScale: computeVisualScaleFromDiameter(features.diameter ?? 0),
+      tntYieldMt: estimateTntYieldMegatons(features.diameter ?? 0),
+      spinRate: randomBetween(0.0005, 0.0025),
+      isNeo: classification?.isNeo ?? null,
+      neoProbability: classification?.neoProbability ?? null,
+      isPhaHazardous: classification?.isPhaHazardous ?? null,
+      phaProbability: classification?.phaProbability ?? null,
+      demoFeatures: features
+    },
+    mesh: null,
+    keplerElements: createKeplerElements(orbit),
+    templateIndex: asteroidEntries.length,
+    earthOrbitIntersection: null
+  };
+
+  return entry;
+}
+
+function setAsteroidGeneratorStatus(message, tone = 'info') {
+  if (!asteroidGeneratorStatusElement) {
+    return;
+  }
+
+  asteroidGeneratorStatusElement.textContent = message ?? '';
+  asteroidGeneratorStatusElement.hidden = !message;
+  asteroidGeneratorStatusElement.classList.remove(
+    'asteroid-panel__status--error',
+    'asteroid-panel__status--success'
+  );
+
+  if (tone === 'error') {
+    asteroidGeneratorStatusElement.classList.add('asteroid-panel__status--error');
+  } else if (tone === 'success') {
+    asteroidGeneratorStatusElement.classList.add('asteroid-panel__status--success');
+  }
+}
+
+async function handleGenerateAsteroidClick() {
+  if (!asteroidGeneratorButton) {
+    return;
+  }
+
+  try {
+    asteroidGeneratorButton.disabled = true;
+    setAsteroidGeneratorStatus('Synthesising asteroid telemetry…');
+
+    await initializeAsteroids();
+
+    const features = buildDemoAsteroidFeatures();
+    const classification = await classifyAsteroid(features);
+    const entry = createDemoAsteroidEntryFromFeatures(features, classification);
+
+    asteroidEntries.push(entry);
+    asteroidEntryMap.set(entry.data.id, entry);
+    asteroidPanel?.addEntry(entry);
+    updateAsteroidPanelMetadata(entry);
+
+    const activationSucceeded = await activateAsteroid(entry);
+
+    if (!activationSucceeded) {
+      throw new Error('Unable to activate generated asteroid.');
+    }
+
+    const neoLabel = classification.isNeo ? 'NEO: Yes' : 'NEO: No';
+    const phaLabel = classification.isPhaHazardous ? 'PHA: Hazard' : 'PHA: Safe';
+    setAsteroidGeneratorStatus(`${entry.data.name} added · ${neoLabel} · ${phaLabel}`, 'success');
+  } catch (error) {
+    console.error('Failed to generate demo asteroid', error);
+    setAsteroidGeneratorStatus('Unable to generate demo asteroid. Please try again.', 'error');
+  } finally {
+    asteroidGeneratorButton.disabled = false;
+  }
+}
 
 const impactMapImage = new Image();
 impactMapImage.crossOrigin = 'anonymous';
@@ -1323,30 +1504,7 @@ function updateAsteroidPanelMetadata(entry) {
     return;
   }
 
-  const item = asteroidPanel.getItemElement(entry.data.id);
-  if (!item) {
-    return;
-  }
-
-  const metaElement = item.querySelector('.asteroid-panel__meta');
-  if (!metaElement) {
-    return;
-  }
-
-  const orbit = entry.data.orbit ?? {};
-  const yieldValue = entry.data.tntYieldMt;
-  const yieldText = Number.isFinite(yieldValue) ? yieldValue : 'N/A';
-  const semiMajorAxisText = Number.isFinite(orbit.semiMajorAxis)
-    ? orbit.semiMajorAxis.toFixed(1)
-    : 'N/A';
-  const eccentricityText = Number.isFinite(orbit.eccentricity)
-    ? orbit.eccentricity.toFixed(3)
-    : 'N/A';
-  const inclinationText = Number.isFinite(orbit.inclination)
-    ? orbit.inclination.toFixed(2)
-    : 'N/A';
-
-  metaElement.textContent = `Yield: ${yieldText} Mt | a=${semiMajorAxisText} | e=${eccentricityText} | i=${inclinationText}°`;
+  asteroidPanel.refreshEntry(entry);
 }
 const earthVelocityOrbital = new THREE.Vector3();
 const earthVelocityKilometersPerSecond = new THREE.Vector3();
@@ -2391,6 +2549,10 @@ if (impactorResetButton) {
 
 if (kineticMitigationButton) {
   kineticMitigationButton.addEventListener('click', handleKineticMitigation);
+}
+
+if (asteroidGeneratorButton) {
+  asteroidGeneratorButton.addEventListener('click', handleGenerateAsteroidClick);
 }
 
 requestAnimationFrame(animate);

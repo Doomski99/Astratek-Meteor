@@ -103,9 +103,106 @@ p {
     font-weight: 600;
 }
 
+.asteroid-panel__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.asteroid-panel__badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    justify-content: flex-end;
+}
+
 .asteroid-panel__meta {
     font-size: 12px;
     color: #c0d7ff;
+}
+
+.asteroid-panel__actions {
+    margin-top: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.asteroid-panel__button {
+    padding: 8px 10px;
+    border: 1px solid rgba(158, 203, 255, 0.4);
+    border-radius: 6px;
+    background: linear-gradient(135deg, rgba(88, 140, 220, 0.65), rgba(40, 80, 160, 0.9));
+    color: #f8faff;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.asteroid-panel__button:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(46, 100, 190, 0.35);
+}
+
+.asteroid-panel__button:disabled {
+    opacity: 0.6;
+    cursor: wait;
+}
+
+.asteroid-panel__hint {
+    margin: 0;
+    font-size: 11px;
+    line-height: 1.4;
+    color: #9fb9ff;
+}
+
+.asteroid-panel__status {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.4;
+    color: #b8d2ff;
+}
+
+.asteroid-panel__status--error {
+    color: #ff8b8b;
+}
+
+.asteroid-panel__status--success {
+    color: #9affc6;
+}
+
+.asteroid-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 6px;
+    border-radius: 12px;
+    font-size: 10px;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    background: rgba(255, 255, 255, 0.12);
+    color: #f4f7ff;
+}
+
+.asteroid-badge--positive {
+    background: rgba(100, 220, 180, 0.25);
+    color: #b9ffe7;
+}
+
+.asteroid-badge--hazard {
+    background: rgba(230, 90, 90, 0.35);
+    color: #ffd5d5;
+}
+
+.asteroid-badge--neutral {
+    background: rgba(90, 120, 160, 0.35);
+    color: #d4e2ff;
+}
+
+.asteroid-badge--unknown {
+    background: rgba(255, 255, 255, 0.1);
+    color: #e4e7ff;
 }
 
 .impact-legend {
