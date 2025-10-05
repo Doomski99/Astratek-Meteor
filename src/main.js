@@ -117,6 +117,8 @@ const impactMapStatusElement = document.querySelector('[data-impact-map-status]'
 const impactMapCaptionElement = document.querySelector('[data-impact-map-caption]');
 const impactMapStatusBaseText = impactMapStatusElement?.textContent ?? 'Awaiting impactor launch…';
 const impactMapCaptionBaseText = impactMapCaptionElement?.textContent ?? '';
+const kineticMitigationButton = document.getElementById('kineticMitigationButton');
+const kineticMitigationStatus = document.querySelector('[data-kinetic-status]');
 
 const ASTEROID_TYPES = {
   M: {
@@ -202,7 +204,8 @@ function updateImpactMapStatusText({
   longitude,
   remainingSeconds,
   impacted,
-  impactCategory
+  impactCategory,
+  mitigationStatus
 } = {}) {
   if (!impactMapStatusElement) {
     return;
@@ -214,11 +217,15 @@ function updateImpactMapStatusText({
   }
 
   const locationText = `${formatLatitude(latitude)}, ${formatLongitude(longitude)}`;
-  const timeText = impacted
+  let timeText = impacted
     ? 'Impact occurred'
     : Number.isFinite(remainingSeconds)
       ? `Impact in ${formatDuration(Math.max(remainingSeconds, 0))}`
       : 'Impact pending';
+
+  if (mitigationStatus?.type === 'deflected') {
+    timeText = 'Impact averted';
+  }
   const categoryText = impactCategory?.name
     ? ` (${impactCategory.name}${impactCategory.rangeLabel ? ` • ${impactCategory.rangeLabel}` : ''})`
     : '';
@@ -334,7 +341,8 @@ function setImpactMapSummary(summary) {
     ...summary,
     effectBands: Array.isArray(summary.effectBands)
       ? summary.effectBands.map(band => ({ ...band }))
-      : []
+      : [],
+    mitigationStatus: summary.mitigationStatus ?? null
   };
   lastImpactMapImpacted = false;
   lastImpactMapSecond = Number.isFinite(summary.timeToImpactSeconds)
@@ -346,7 +354,8 @@ function setImpactMapSummary(summary) {
   updateImpactMapStatusText({
     ...impactMapSummary,
     remainingSeconds: summary.timeToImpactSeconds,
-    impacted: false
+    impacted: false,
+    mitigationStatus: impactMapSummary.mitigationStatus
   });
 }
 
@@ -366,13 +375,15 @@ function updateImpactMapFromSnapshot(snapshot) {
   }
 
   impactMapSummary.timeToImpactSeconds = snapshot.remainingSeconds;
+  impactMapSummary.mitigationStatus = snapshot.mitigationStatus ?? impactMapSummary.mitigationStatus ?? null;
 
   if (impactedChanged || wholeSeconds !== lastImpactMapSecond) {
     lastImpactMapSecond = wholeSeconds;
     updateImpactMapStatusText({
       ...impactMapSummary,
       remainingSeconds: snapshot.remainingSeconds,
-      impacted: snapshot.impacted
+      impacted: snapshot.impacted,
+      mitigationStatus: snapshot.mitigationStatus ?? impactMapSummary.mitigationStatus
     });
   }
 }
@@ -414,6 +425,42 @@ function formatDuration(seconds) {
   }
   segments.push(`${secs}s`);
   return segments.join(' ');
+}
+
+function formatDistanceKm(distanceKm) {
+  if (!Number.isFinite(distanceKm) || distanceKm <= 0) {
+    return null;
+  }
+
+  if (distanceKm >= 1000000) {
+    return `${(distanceKm / 1000).toLocaleString(undefined, { maximumFractionDigits: 0 })} km`;
+  }
+  if (distanceKm >= 100000) {
+    return `${distanceKm.toLocaleString(undefined, { maximumFractionDigits: 0 })} km`;
+  }
+  if (distanceKm >= 1000) {
+    return `${distanceKm.toLocaleString(undefined, { maximumFractionDigits: 1 })} km`;
+  }
+  if (distanceKm >= 10) {
+    return `${distanceKm.toLocaleString(undefined, { maximumFractionDigits: 1 })} km`;
+  }
+  if (distanceKm >= 1) {
+    return `${distanceKm.toLocaleString(undefined, { maximumFractionDigits: 2 })} km`;
+  }
+  return `${distanceKm.toLocaleString(undefined, { maximumFractionDigits: 3 })} km`;
+}
+
+function setKineticMitigationStatus(label, variant = 'idle') {
+  if (!kineticMitigationStatus) {
+    return;
+  }
+
+  kineticMitigationStatus.textContent = label;
+  if (variant && variant !== 'idle') {
+    kineticMitigationStatus.dataset.variant = variant;
+  } else {
+    delete kineticMitigationStatus.dataset.variant;
+  }
 }
 
 function setImpactorFeedback(message, variant = 'info') {
@@ -568,18 +615,31 @@ function updateImpactorResults(summary) {
     return;
   }
 
+  const mitigationStatus = summary.mitigationStatus ?? null;
+  const isDeflected = mitigationStatus?.type === 'deflected';
+
   if (impactorResultsElement) {
     impactorResultsElement.hidden = false;
   }
   if (impactorYieldValue) {
-    const yieldText = Number.isFinite(summary.yieldMegatons)
-      ? `${summary.yieldMegatons.toFixed(2)} Mt`
-      : '—';
+    const yieldText = isDeflected
+      ? '0.00 Mt'
+      : Number.isFinite(summary.yieldMegatons)
+        ? `${summary.yieldMegatons.toFixed(2)} Mt`
+        : '—';
     impactorYieldValue.textContent = yieldText;
   }
   if (impactorCategoryValue) {
     const category = summary.impactCategory ?? null;
-    if (category?.name) {
+    if (isDeflected) {
+      impactorCategoryValue.textContent = 'Impact averted';
+      impactorCategoryValue.title = '';
+      delete impactorCategoryValue.dataset.tooltip;
+      impactorCategoryValue.classList.remove('impactor-results__value--has-tooltip');
+      impactorCategoryValue.removeAttribute('tabindex');
+      impactorCategoryValue.removeAttribute('role');
+      impactorCategoryValue.removeAttribute('aria-label');
+    } else if (category?.name) {
       const labelParts = [category.name];
       if (category.rangeLabel) {
         labelParts.push(category.rangeLabel);
@@ -615,12 +675,21 @@ function updateImpactorResults(summary) {
     }
   }
   if (impactorImpactLocationValue) {
-    const latitudeText = formatLatitude(summary.latitude);
-    const longitudeText = formatLongitude(summary.longitude);
-    impactorImpactLocationValue.textContent = `${latitudeText}, ${longitudeText}`;
+    if (isDeflected) {
+      const missDistanceLabel = formatDistanceKm(mitigationStatus?.missDistanceKm);
+      impactorImpactLocationValue.textContent = missDistanceLabel
+        ? `Miss distance ${missDistanceLabel}`
+        : 'Trajectory diverted';
+    } else {
+      const latitudeText = formatLatitude(summary.latitude);
+      const longitudeText = formatLongitude(summary.longitude);
+      impactorImpactLocationValue.textContent = `${latitudeText}, ${longitudeText}`;
+    }
   }
-  if (impactorTimeValue && Number.isFinite(summary.timeToImpactSeconds)) {
+  if (impactorTimeValue && Number.isFinite(summary.timeToImpactSeconds) && !isDeflected) {
     impactorTimeValue.textContent = formatDuration(summary.timeToImpactSeconds);
+  } else if (impactorTimeValue && isDeflected) {
+    impactorTimeValue.textContent = 'Averted';
   }
   if (Array.isArray(summary.effectBands)) {
     renderImpactorEffects(summary.effectBands);
@@ -629,8 +698,13 @@ function updateImpactorResults(summary) {
   setImpactMapSummary(summary);
 }
 
-function updateImpactorCountdown(remainingSeconds, impacted) {
+function updateImpactorCountdown(remainingSeconds, impacted, mitigationStatus) {
   if (!impactorTimeValue) {
+    return;
+  }
+
+  if (mitigationStatus?.type === 'deflected') {
+    impactorTimeValue.textContent = 'Averted';
     return;
   }
 
@@ -697,6 +771,8 @@ function handleImpactorSubmit(event) {
       asteroidTypeConfig
     );
 
+    clearImpactorFocus();
+
     setImpactorFormState({ isSubmitting: true, hasActiveImpactor: false });
 
     const timing = getCurrentSimulationTiming();
@@ -713,14 +789,28 @@ function handleImpactorSubmit(event) {
       { currentOrbitFrame: timing.orbitFrames }
     );
 
-    updateImpactorResults({ ...summary, timeToImpactSeconds: summary.timeToImpactSeconds });
+    setImpactorViewTarget(summary.name);
+    updateImpactorResults({
+      ...summary,
+      timeToImpactSeconds: summary.timeToImpactSeconds,
+      mitigationStatus: summary.mitigationStatus ?? null
+    });
     setImpactorFeedback('Impactor launched toward the selected impact zone.', 'success');
     setImpactorFormState({ hasActiveImpactor: true });
+    if (kineticMitigationButton) {
+      kineticMitigationButton.disabled = false;
+    }
+    setKineticMitigationStatus('Ready', 'ready');
   } catch (error) {
     console.error('Failed to create impactor', error);
     clearImpactorResults();
+    removeImpactorViewTarget();
     setImpactorFormState({ hasActiveImpactor: false });
     setImpactorFeedback(error.message || 'Unable to create impactor.', 'error');
+    if (kineticMitigationButton) {
+      kineticMitigationButton.disabled = true;
+    }
+    setKineticMitigationStatus('Standby');
   }
 }
 
@@ -757,14 +847,86 @@ function handleImpactorReset(event) {
   }
 
   impactorManagerInstance.reset();
+  clearImpactorFocus();
   clearImpactorResults();
+  removeImpactorViewTarget();
   setImpactorFormState({ hasActiveImpactor: false });
   setImpactorFeedback('Impactor cleared. Enter new parameters to generate another trajectory.', 'info');
+  if (kineticMitigationButton) {
+    kineticMitigationButton.disabled = true;
+  }
+  setKineticMitigationStatus('Standby');
+}
+
+function handleKineticMitigation(event) {
+  event?.preventDefault?.();
+
+  if (!impactorManagerInstance) {
+    setImpactorFeedback('Impactor systems are not ready yet.', 'error');
+    return;
+  }
+
+  const snapshot = impactorManagerInstance.getSnapshot?.();
+  if (!snapshot) {
+    setImpactorFeedback('Launch a custom impactor before executing a mitigation plan.', 'warning');
+    setKineticMitigationStatus('Standby');
+    return;
+  }
+
+  if (snapshot.mitigationStatus?.type === 'deflected') {
+    setImpactorFeedback('The active impactor trajectory has already been deflected.', 'info');
+    setKineticMitigationStatus('Deflected', 'success');
+    return;
+  }
+
+  if (snapshot.impacted) {
+    setImpactorFeedback('Mitigation is unavailable after impact has occurred.', 'error');
+    setKineticMitigationStatus('Unavailable', 'warning');
+    return;
+  }
+
+  try {
+    const timing = getCurrentSimulationTiming();
+    const result = impactorManagerInstance.applyKineticDeflection({
+      currentOrbitFrame: timing.orbitFrames
+    });
+
+    const updatedSnapshot = impactorManagerInstance.getSnapshot?.() ?? null;
+    if (updatedSnapshot) {
+      updateImpactorResults({
+        ...updatedSnapshot,
+        timeToImpactSeconds: null,
+        mitigationStatus: updatedSnapshot.mitigationStatus ?? { type: 'deflected' }
+      });
+    }
+
+    setImpactMapSummary(null);
+
+    const missDistanceLabel = formatDistanceKm(result.missDistanceKm);
+    const feedbackMessage = missDistanceLabel
+      ? `Kinetic impactor executed. Projected miss distance: ${missDistanceLabel}.`
+      : 'Kinetic impactor executed. Impact trajectory averted.';
+    setImpactorFeedback(feedbackMessage, 'success');
+
+    if (kineticMitigationButton) {
+      kineticMitigationButton.disabled = true;
+    }
+    const statusText = missDistanceLabel ? `Miss distance ${missDistanceLabel}` : 'Deflected';
+    setKineticMitigationStatus(statusText, 'success');
+  } catch (error) {
+    console.error('Failed to apply kinetic mitigation', error);
+    setImpactorFeedback(error.message || 'Unable to adjust the impactor trajectory.', 'error');
+    setKineticMitigationStatus('Retry required', 'warning');
+  }
 }
 
 clearImpactorResults();
 setImpactorFormState({ hasActiveImpactor: false });
 setImpactorFeedback('');
+if (kineticMitigationButton) {
+  kineticMitigationButton.disabled = true;
+}
+setKineticMitigationStatus('Standby');
 
 let lastFrameTime = performance.now();
 
@@ -780,6 +942,7 @@ controls.addEventListener('start', () => {
   isManualOrbiting = true;
   isUserOrbitControlsActive = true;
   isMovingTowardsAsteroid = false;
+  isMovingTowardsImpactor = false;
   isMovingTowardsPlanet = false;
   isZoomingOut = false;
 });
@@ -816,6 +979,14 @@ function setActiveViewTarget(id) {
   });
 }
 
+const IMPACTOR_TARGET_ID = 'impactor';
+
+function formatImpactorViewTargetLabel(name) {
+  const trimmed = typeof name === 'string' ? name.trim() : '';
+  const baseLabel = trimmed.length > 0 ? trimmed : 'Custom Impactor';
+  return /impactor/i.test(baseLabel) ? baseLabel : `${baseLabel} (Impactor)`;
+}
+
 function getAsteroidViewTargetId(asteroidId) {
   return `asteroid:${asteroidId}`;
 }
@@ -837,6 +1008,37 @@ function addAsteroidViewTarget(entry) {
 
   viewTargetListElement.appendChild(item);
   viewTargetItems.set(targetId, item);
+}
+
+function setImpactorViewTarget(name) {
+  if (!viewTargetListElement) {
+    return;
+  }
+
+  const label = formatImpactorViewTargetLabel(name);
+  let item = viewTargetItems.get(IMPACTOR_TARGET_ID);
+  if (!item) {
+    item = document.createElement('li');
+    item.className = 'view-panel__item';
+    item.dataset.targetId = IMPACTOR_TARGET_ID;
+    viewTargetListElement.appendChild(item);
+  }
+
+  item.textContent = label;
+  viewTargetItems.set(IMPACTOR_TARGET_ID, item);
+}
+
+function removeImpactorViewTarget() {
+  const item = viewTargetItems.get(IMPACTOR_TARGET_ID);
+  if (item?.parentElement) {
+    item.parentElement.removeChild(item);
+  }
+
+  viewTargetItems.delete(IMPACTOR_TARGET_ID);
+
+  if (activeViewTargetId === IMPACTOR_TARGET_ID) {
+    setActiveViewTarget('earth');
+  }
 }
 
 function removeAsteroidViewTarget(entry) {
@@ -903,6 +1105,11 @@ if (viewTargetListElement) {
     const { targetId } = item.dataset;
     if (targetId === 'earth') {
       focusEarthView();
+      return;
+    }
+
+    if (targetId === IMPACTOR_TARGET_ID) {
+      focusImpactor();
       return;
     }
 
@@ -1098,6 +1305,11 @@ const asteroidWorkVector = new THREE.Vector3();
 const previousControlsTarget = new THREE.Vector3();
 const controlsTargetDelta = new THREE.Vector3();
 const earthWorldPosition = new THREE.Vector3();
+const impactorFocusPoint = new THREE.Vector3();
+const impactorCameraTarget = new THREE.Vector3();
+let focusedImpactorMesh = null;
+let impactorCameraOffset = null;
+let isMovingTowardsImpactor = false;
 
 const asteroidEntries = [];
 const asteroidEntryMap = new Map();
@@ -1696,6 +1908,16 @@ function clearAsteroidFocus() {
   }
 }
 
+function clearImpactorFocus() {
+  if (!focusedImpactorMesh) {
+    return;
+  }
+
+  focusedImpactorMesh = null;
+  impactorCameraOffset = null;
+  isMovingTowardsImpactor = false;
+}
+
 async function activateAsteroid(entry) {
   const id = entry.data.id;
   asteroidPanel?.setTracked(id, true);
@@ -1772,6 +1994,7 @@ function handleAsteroidToggle(id, shouldActivate) {
 
 function focusAsteroidEntry(entry) {
   clearAsteroidFocus();
+  clearImpactorFocus();
   focusedAsteroidEntry = entry;
   activeAsteroidIds.add(entry.data.id);
   asteroidPanel?.setFocused(entry.data.id);
@@ -1806,6 +2029,7 @@ async function focusAsteroidById(id) {
 
 function focusEarthView() {
   clearAsteroidFocus();
+  clearImpactorFocus();
   setActiveViewTarget('earth');
   const earthTarget = typeof earth !== 'undefined' ? earth.planet : null;
   setCameraZoomLimitsForObject(earthTarget, 6.4);
@@ -1814,6 +2038,39 @@ function focusEarthView() {
   isMovingTowardsAsteroid = false;
   isMovingTowardsPlanet = false;
   isZoomingOut = true;
+}
+
+function focusImpactor() {
+  if (!impactorManagerInstance?.getActiveImpactorMesh) {
+    return;
+  }
+
+  const mesh = impactorManagerInstance.getActiveImpactorMesh();
+  if (!mesh) {
+    return;
+  }
+
+  closeInfoNoZoomOut();
+  selectedPlanet = null;
+  isMovingTowardsPlanet = false;
+  isZoomingOut = false;
+
+  clearAsteroidFocus();
+  clearImpactorFocus();
+
+  setCameraZoomLimitsForObject(mesh, 2);
+
+  impactorCameraOffset = computeAsteroidCameraOffset({ mesh });
+  mesh.getWorldPosition(impactorFocusPoint);
+  impactorCameraTarget.copy(impactorFocusPoint).add(impactorCameraOffset);
+  controls.target.copy(impactorFocusPoint);
+
+  focusedImpactorMesh = mesh;
+  isManualOrbiting = false;
+  isMovingTowardsAsteroid = false;
+  isMovingTowardsImpactor = true;
+
+  setActiveViewTarget(IMPACTOR_TARGET_ID);
 }
 
 let asteroidInitializationPromise = null;
@@ -1994,7 +2251,8 @@ function animate(now = performance.now()) {
   if (impactorSnapshot) {
     updateImpactorCountdown(
       impactorSnapshot.remainingSeconds,
-      impactorSnapshot.impacted
+      impactorSnapshot.impacted,
+      impactorSnapshot.mitigationStatus
     );
     updateImpactMapFromSnapshot(impactorSnapshot);
   }
@@ -2026,7 +2284,39 @@ function animate(now = performance.now()) {
       asteroidCameraTarget.copy(asteroidFocusPoint).add(asteroidCameraOffset);
       camera.position.lerp(asteroidCameraTarget, 0.02);
     }
-  } else if (!selectedPlanet && !isMovingTowardsPlanet && !isMovingTowardsAsteroid && !isZoomingOut) {
+  } else if (focusedImpactorMesh) {
+    focusedImpactorMesh.getWorldPosition(impactorFocusPoint);
+
+    const offset = impactorCameraOffset ?? computeAsteroidCameraOffset({ mesh: focusedImpactorMesh });
+    if (!impactorCameraOffset) {
+      impactorCameraOffset = offset;
+    }
+
+    const shouldUpdateImpactorTarget = !isUserOrbitControlsActive || isMovingTowardsImpactor;
+    let impactorTargetUpdated = false;
+
+    if (shouldUpdateImpactorTarget) {
+      previousControlsTarget.copy(controls.target);
+      controls.target.lerp(impactorFocusPoint, 0.15);
+      impactorTargetUpdated = true;
+    }
+
+    if (isMovingTowardsImpactor) {
+      impactorCameraTarget.copy(impactorFocusPoint).add(offset);
+    } else if (isManualOrbiting && impactorTargetUpdated) {
+      controlsTargetDelta.subVectors(controls.target, previousControlsTarget);
+      camera.position.add(controlsTargetDelta);
+    } else if (!isManualOrbiting) {
+      impactorCameraTarget.copy(impactorFocusPoint).add(offset);
+      camera.position.lerp(impactorCameraTarget, 0.02);
+    }
+  } else if (
+    !selectedPlanet &&
+    !isMovingTowardsPlanet &&
+    !isMovingTowardsAsteroid &&
+    !isMovingTowardsImpactor &&
+    !isZoomingOut
+  ) {
     if (!isUserOrbitControlsActive) {
       previousControlsTarget.copy(controls.target);
       controls.target.lerp(earthDefaultTargetPosition, 0.1);
@@ -2042,6 +2332,8 @@ function animate(now = performance.now()) {
 
   if (focusedAsteroidEntry && focusedAsteroidEntry.mesh) {
     outlinePass.selectedObjects = [focusedAsteroidEntry.mesh];
+  } else if (focusedImpactorMesh) {
+    outlinePass.selectedObjects = [focusedImpactorMesh];
   } else {
     outlinePass.selectedObjects = [];
   }
@@ -2058,6 +2350,11 @@ function animate(now = performance.now()) {
     camera.position.lerp(asteroidCameraTarget, 0.03);
     if (camera.position.distanceTo(asteroidCameraTarget) < 1) {
       isMovingTowardsAsteroid = false;
+    }
+  } else if (isMovingTowardsImpactor) {
+    camera.position.lerp(impactorCameraTarget, 0.03);
+    if (camera.position.distanceTo(impactorCameraTarget) < 1) {
+      isMovingTowardsImpactor = false;
     }
   } else if (isZoomingOut) {
     controls.target.lerp(earthDefaultTargetPosition, 0.1);
@@ -2090,6 +2387,10 @@ if (impactorForm) {
 
 if (impactorResetButton) {
   impactorResetButton.addEventListener('click', handleImpactorReset);
+}
+
+if (kineticMitigationButton) {
+  kineticMitigationButton.addEventListener('click', handleKineticMitigation);
 }
 
 requestAnimationFrame(animate);

@@ -11,13 +11,14 @@ import {
   disposeObject
 } from './asteroids.js';
 import { propagateKepler } from './kepler.js';
-import { orbitPositionToScene, estimateOrbitalVelocity } from './orbitUtils.js';
+import { orbitPositionToScene, estimateOrbitalVelocity, sampleKeplerOrbit } from './orbitUtils.js';
 import { getImpactYieldCategory } from '../data/impactYieldCategories.js';
 
 const MEGATON_JOULES = 4.184e15;
 const EARTH_RADIUS_KILOMETERS = 6371;
 const EARTH_RADIUS_SCENE_KILOMETERS = EARTH_RADIUS_SCENE_UNITS * KILOMETERS_PER_SCENE_UNIT;
-const DEFAULT_LEAD_TIME_SECONDS = 7 * 24 * 60 * 60;
+const DEFAULT_LEAD_TIME_SECONDS = 60 * 24 * 60 * 60;
+const MIN_FRAMES_UNTIL_IMPACT = 1200;
 const SOLAR_MU_KM3_PER_S2 = 1.32712440018e11;
 const EARTH_MU_KM3_PER_S2 = 398600.4418;
 const SEA_LEVEL_AIR_DENSITY_KG_PER_M3 = 1.225;
@@ -709,7 +710,7 @@ function buildImpactorState({
   const leadTime = Math.max(Number.isFinite(leadTimeSeconds) ? leadTimeSeconds : 0, 0);
   let framesUntilImpact = Math.max(
     Math.round((leadTime || DEFAULT_LEAD_TIME_SECONDS) / SECONDS_PER_FRAME),
-    300
+    MIN_FRAMES_UNTIL_IMPACT
   );
   const currentFrame = currentOrbitFrame ?? 0;
   let impactEpochFrame = currentFrame + framesUntilImpact;
@@ -885,15 +886,10 @@ function buildImpactorState({
   scene.add(mesh);
 
   let trajectoryLine = null;
-  const trajectoryPoints = [];
-  const sampleCount = 256;
-  for (let index = 0; index <= sampleCount; index += 1) {
-    const progress = index / sampleCount;
-    const sampleFrame = currentFrame + progress * (impactEpochFrame - currentFrame);
-    const { position: samplePosition } = propagateKepler(keplerElements, sampleFrame);
-    const scenePoint = orbitPositionToScene(samplePosition, new THREE.Vector3());
-    trajectoryPoints.push(scenePoint.clone());
-  }
+  const trajectorySegments = 512;
+  const trajectoryPoints = sampleKeplerOrbit(keplerElements, trajectorySegments).map(point =>
+    point.clone()
+  );
 
   if (trajectoryPoints.length >= 2) {
     trajectoryLine = createTrajectoryLine(trajectoryPoints);
@@ -973,7 +969,8 @@ function buildImpactorState({
     atmosphericEntryFrame: null,
     elapsedSeconds: 0,
     initialTimeToImpactSeconds: timeToImpactSeconds,
-    earthRadiusScene
+    earthRadiusScene,
+    mitigationStatus: null
   };
 }
 
@@ -1013,7 +1010,8 @@ function createImpactorManager({ scene, earthMesh, earthOrbitElements }) {
     yieldMegatons: null,
     effectBands: [],
     name: null,
-    impactCategory: null
+    impactCategory: null,
+    mitigationStatus: null
   };
 
   function clearSnapshot() {
@@ -1025,6 +1023,7 @@ function createImpactorManager({ scene, earthMesh, earthOrbitElements }) {
     snapshot.effectBands = [];
     snapshot.name = null;
     snapshot.impactCategory = null;
+    snapshot.mitigationStatus = null;
   }
 
   function rebuildOverlay(state) {
@@ -1085,6 +1084,9 @@ function createImpactorManager({ scene, earthMesh, earthOrbitElements }) {
     snapshot.yieldMegatons = safeYield;
     snapshot.effectBands = safeBands.map(band => ({ ...band }));
     snapshot.name = state.name;
+    snapshot.mitigationStatus = state.mitigationStatus
+      ? { ...state.mitigationStatus }
+      : null;
 
     if (state.impactCategory) {
       snapshot.impactCategory = {
@@ -1114,6 +1116,9 @@ function createImpactorManager({ scene, earthMesh, earthOrbitElements }) {
       name: snapshot.name,
       impactCategory: snapshot.impactCategory
         ? { ...snapshot.impactCategory }
+        : null,
+      mitigationStatus: snapshot.mitigationStatus
+        ? { ...snapshot.mitigationStatus }
         : null
     };
   }
@@ -1128,6 +1133,166 @@ function createImpactorManager({ scene, earthMesh, earthOrbitElements }) {
     currentState = null;
     clearSnapshot();
     return hadImpactor;
+  }
+
+  function applyKineticDeflection({ currentOrbitFrame } = {}) {
+    if (!currentState) {
+      throw new Error('No active impactor is available for deflection.');
+    }
+
+    if (currentState.impacted) {
+      throw new Error('The impactor has already impacted Earth.');
+    }
+
+    const frame = Number.isFinite(currentOrbitFrame)
+      ? currentOrbitFrame
+      : currentState.previousOrbitFrame ?? currentState.keplerElements?.epoch ?? 0;
+
+    const { position } = propagateKepler(currentState.keplerElements, frame);
+    const positionKm = new THREE.Vector3(
+      position.x ?? 0,
+      position.y ?? 0,
+      position.z ?? 0
+    ).multiplyScalar(KILOMETERS_PER_SCENE_UNIT);
+
+    const impactorVelocitySeed = estimateOrbitalVelocity(currentState.keplerElements, frame, {
+      kilometersPerSecondTarget: new THREE.Vector3()
+    });
+    const impactorVelocityKmPerSecond = (impactorVelocitySeed.kilometersPerSecond ?? new THREE.Vector3()).clone();
+
+    const earthVelocitySeed = estimateOrbitalVelocity(earthOrbitElements, frame, {
+      kilometersPerSecondTarget: new THREE.Vector3()
+    });
+    const earthVelocityKmPerSecond = (earthVelocitySeed.kilometersPerSecond ?? new THREE.Vector3()).clone();
+
+    const relativeVelocity = impactorVelocityKmPerSecond.clone().sub(earthVelocityKmPerSecond);
+    const impactNormal = currentState.impactNormalOrbit?.clone?.() ?? new THREE.Vector3(0, 1, 0);
+
+    let deflectionDirection = relativeVelocity.clone().cross(impactNormal).normalize();
+    if (deflectionDirection.lengthSq() < 1e-8) {
+      deflectionDirection = relativeVelocity.clone().cross(new THREE.Vector3(0, 1, 0)).normalize();
+      if (deflectionDirection.lengthSq() < 1e-8) {
+        deflectionDirection.set(1, 0, 0);
+      }
+    }
+
+    const deltaVBase = 0.12; // km/s
+    let appliedDeltaV = null;
+    let bestElements = null;
+    let bestMissDistanceKm = null;
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const magnitude = deltaVBase * Math.pow(2, attempt);
+      const deltaVelocity = deflectionDirection.clone().multiplyScalar(magnitude);
+
+      let candidateElements = null;
+      try {
+        candidateElements = createKeplerFromState(
+          positionKm,
+          impactorVelocityKmPerSecond.clone().add(deltaVelocity),
+          frame
+        );
+      } catch (error) {
+        console.warn('[Impactor] Deflection attempt failed', error);
+        continue;
+      }
+
+      const candidateEstimate = estimateImpactEpochFrame({
+        earthElements: earthOrbitElements,
+        impactorElements: candidateElements,
+        initialFrame: currentState.impactEpochFrame,
+        minFrame: frame
+      });
+
+      const candidateMissDistanceKm = candidateEstimate?.surfaceDeltaKm ?? Infinity;
+
+      if (!Number.isFinite(candidateMissDistanceKm) || candidateMissDistanceKm > 50) {
+        bestElements = candidateElements;
+        bestMissDistanceKm = Number.isFinite(candidateMissDistanceKm)
+          ? candidateMissDistanceKm
+          : null;
+        appliedDeltaV = magnitude;
+        break;
+      }
+
+      if (
+        bestElements === null ||
+        (Number.isFinite(candidateMissDistanceKm) &&
+          (!Number.isFinite(bestMissDistanceKm) || candidateMissDistanceKm > bestMissDistanceKm))
+      ) {
+        bestElements = candidateElements;
+        bestMissDistanceKm = candidateMissDistanceKm;
+        appliedDeltaV = magnitude;
+      }
+    }
+
+    if (!bestElements) {
+      throw new Error('Unable to compute a deflected trajectory for the impactor.');
+    }
+
+    if (Number.isFinite(bestMissDistanceKm) && Math.abs(bestMissDistanceKm) <= 50) {
+      throw new Error('The kinetic deflection was insufficient to avoid impact.');
+    }
+
+    const missDistanceKm = Number.isFinite(bestMissDistanceKm)
+      ? Math.abs(bestMissDistanceKm)
+      : null;
+
+    currentState.keplerElements = bestElements;
+    currentState.impactEpochFrame = Infinity;
+    currentState.impacted = false;
+    currentState.dragActive = false;
+    currentState.dragRelativePositionKm = null;
+    currentState.dragRelativeVelocityKmPerSecond = null;
+    currentState.timeToImpactSeconds = null;
+    currentState.mitigationStatus = {
+      type: 'deflected',
+      missDistanceKm,
+      deltaVelocityKmPerSecond: appliedDeltaV ?? null,
+      appliedAtFrame: frame
+    };
+    currentState.effectBands = [];
+    currentState.yieldMegatons = 0;
+    currentState.impactCategory = null;
+    currentState.impactScenePosition = null;
+    currentState.previousOrbitFrame = frame;
+
+    if (currentState.trajectoryLine) {
+      if (currentState.trajectoryLine.parent) {
+        currentState.trajectoryLine.parent.remove(currentState.trajectoryLine);
+      }
+      disposeObject(currentState.trajectoryLine);
+      currentState.trajectoryLine = null;
+    }
+
+    const deflectedTrajectoryPoints = sampleKeplerOrbit(currentState.keplerElements, 512).map(point =>
+      point.clone()
+    );
+    if (deflectedTrajectoryPoints.length >= 2) {
+      currentState.trajectoryLine = createTrajectoryLine(deflectedTrajectoryPoints);
+      currentState.trajectoryLine.material.color.setHex(0x7bd6ff);
+      currentState.trajectoryLine.material.opacity = 0.85;
+      currentState.trajectoryLine.material.needsUpdate = true;
+      currentState.trajectoryLine.userData.impactorTrajectory = true;
+      scene.add(currentState.trajectoryLine);
+    }
+
+    applyImpactOutputs(currentState, {
+      yieldMegatons: 0,
+      impactCategory: null,
+      effectBands: []
+    });
+
+    snapshot.remainingSeconds = null;
+    snapshot.impacted = false;
+    snapshot.mitigationStatus = currentState.mitigationStatus
+      ? { ...currentState.mitigationStatus }
+      : null;
+
+    return {
+      missDistanceKm,
+      deltaVelocityKmPerSecond: appliedDeltaV ?? null
+    };
   }
 
   function spawn(config, { currentOrbitFrame } = {}) {
@@ -1147,6 +1312,8 @@ function createImpactorManager({ scene, earthMesh, earthOrbitElements }) {
     snapshot.latitude = state.latitude;
     snapshot.longitude = state.longitude;
     snapshot.name = state.name;
+    snapshot.mitigationStatus = null;
+    state.mitigationStatus = null;
 
     applyImpactOutputs(currentState, {
       yieldMegatons: state.yieldMegatons,
@@ -1165,7 +1332,8 @@ function createImpactorManager({ scene, earthMesh, earthOrbitElements }) {
       effectBands: state.effectBands,
       timeToImpactSeconds: state.timeToImpactSeconds,
       name: state.name,
-      impactCategory: impactCategorySummary
+      impactCategory: impactCategorySummary,
+      mitigationStatus: null
     };
   }
 
@@ -1381,17 +1549,35 @@ function createImpactorManager({ scene, earthMesh, earthOrbitElements }) {
       remainingSeconds = remainingFrames * SECONDS_PER_FRAME;
     }
 
+    if (currentState.mitigationStatus?.type === 'deflected') {
+      remainingSeconds = null;
+    }
+
     snapshot.remainingSeconds = remainingSeconds;
     snapshot.impacted = currentState.impacted;
+    snapshot.mitigationStatus = currentState.mitigationStatus
+      ? { ...currentState.mitigationStatus }
+      : null;
 
     return getSnapshot();
+  }
+
+  function getActiveImpactorMesh() {
+    return currentState?.mesh ?? null;
+  }
+
+  function getActiveImpactorName() {
+    return currentState?.name ?? null;
   }
 
   return {
     spawn,
     reset,
     update,
-    getSnapshot
+    getSnapshot,
+    getActiveImpactorMesh,
+    getActiveImpactorName,
+    applyKineticDeflection
   };
 }
 
