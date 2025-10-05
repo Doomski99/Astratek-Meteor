@@ -11,6 +11,7 @@ Monitor asteroids and evaluate its impact. Astratek Meteor is an interactive Web
 - **ONNX-powered risk classification** – Each tracked asteroid is automatically standardised and scored as a Near-Earth Object (NEO) and Potentially Hazardous Asteroid (PHA) using the bundled ONNX model, keeping the UI badges in sync with model predictions.
 - **Custom impact analysis** – Users can launch bespoke impactors, view yield categories, and inspect the predicted blast zones and effect descriptions through dedicated panels and overlays.
 - **UI panels for exploration** – Track asteroids, switch view targets, and inspect impact telemetry with modular UI controllers that wire DOM interactions to simulation state.
+- **Machine learning model** - A Deep learning model is used to continuously predict if an asteroid is a NEO and/or PHA using it's orbital parameters and characteristics.
 
 ## Tech Stack
 - [Three.js](https://threejs.org/) for 3D rendering and orbital visualisation
