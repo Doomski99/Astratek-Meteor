@@ -1,4 +1,4 @@
-# Astratek Meteor
+# Impactor 2025
 
 Monitor asteroids and evaluate its impact. Astratek Meteor is an interactive WebGL experience that blends a physically inspired solar system model with near-Earth object tracking and cinematic post-processing. Built with Three.js and Vite, the project combines real orbital elements, asteroid telemetry, and a custom impact simulation workflow to help users explore how different celestial bodies move and collide.
 
