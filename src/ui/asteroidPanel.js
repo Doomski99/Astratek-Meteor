@@ -17,9 +17,18 @@ function createBadge({ label, value, probability, positiveLabel, negativeLabel, 
     badge.classList.add(toneClass);
   }
 
-  const probabilityText = Number.isFinite(probability)
-    ? ` (${Math.round(probability * 100)}%)`
-    : '';
+  let probabilityText = '';
+  if (Number.isFinite(probability)) {
+    const percent = probability * 100;
+    if (percent > 0 && percent < 0.01) {
+      probabilityText = ' (<0.01%)';
+    } else if (percent < 100 && percent > 99.99) {
+      probabilityText = ' (>99.99%)';
+    } else {
+      const decimals = percent >= 10 || percent <= 0 ? 1 : 2;
+      probabilityText = ` (${percent.toFixed(decimals)}%)`;
+    }
+  }
 
   badge.textContent = `${label} · ${valueLabel}${probabilityText}`;
   return badge;

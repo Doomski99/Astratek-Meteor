@@ -26,6 +26,12 @@ This document describes how the Astratek Meteor codebase is organised and how th
 - `bodies.js` – Parses CSV orbit data, constructs `planetData`, generates Kepler elements, instantiates planets/moons, and exposes helpers for asteroid mesh creation and trajectory sampling. It also feeds asteroid telemetry through the ONNX classifier so each catalogue entry ships with predicted NEO/PHA labels and probabilities.
 - `impactYieldCategories.js` – Defines descriptive yield bands, labels, and severity metadata used by the impact analysis overlay and summary panel.
 
+### `src/model/`
+- `neoClassifier.js` – Wraps `onnxruntime-web`, applies the StandardScaler statistics, runs inference, and exposes helpers that return booleans and probabilities for the UI badges.
+- `featureSchema.js` – Stores the ordered feature list plus the scaler mean/scale arrays used to standardise asteroid telemetry before inference.
+- `scaler.json` – JSON payload containing the scaler parameters shared by the browser runtime and offline verification script.
+- `astratek_model.onnx` – Bundled ONNX model that scores Near-Earth Object and Potentially Hazardous Asteroid probabilities.
+
 ### `src/simulation/`
 - `kepler.js` – Contains orbital propagation utilities built on Keplerian elements, including conversions between anomalies and scene coordinates.
 - `orbitUtils.js` – Houses transformations between orbital and scene frames, interpolation helpers, and trajectory sampling logic shared by planets and asteroids.
@@ -46,6 +52,9 @@ This document describes how the Astratek Meteor codebase is organised and how th
 
 ### `docs/`
 - `PROJECT_STRUCTURE.md` (this document) – High-level documentation for the repository.
+
+### `scripts/`
+- `verify_model.py` – Utility to execute the ONNX classifier against the CSV catalogue from the command line for debugging or regression checks.
 
 ## Data & Asset Dependencies
 - All runtime imagery lives under `src/images/` and is imported directly in `main.js`, allowing Vite to bundle them.

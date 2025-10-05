@@ -1,31 +1,10 @@
 import { InferenceSession, Tensor, env } from 'onnxruntime-web';
 import modelUrl from './astratek_model.onnx?url';
+import { FEATURE_ORDER, FEATURE_MEAN, standardizeFeatureVector } from './featureSchema.js';
 
 const ORT_WEB_VERSION = '1.23.0'; // keep in sync with package.json
 
 env.wasm.wasmPaths = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_WEB_VERSION}/dist/`;
-
-const FEATURE_ORDER = [
-  'diameter',
-  'diameter_sigma',
-  'e',
-  'a',
-  'i',
-  'om',
-  'w',
-  'ma',
-  'n',
-  'sigma_e',
-  'sigma_a',
-  'sigma_i',
-  'sigma_om',
-  'sigma_w',
-  'sigma_ma',
-  'sigma_n',
-  'H',
-  'H_sigma',
-  'moid'
-];
 
 let sessionPromise = null;
 
@@ -44,13 +23,21 @@ function sigmoid(value) {
 }
 
 function createInput(features) {
-  const data = new Float32Array(FEATURE_ORDER.length);
+  const baseVector = new Float32Array(FEATURE_ORDER.length);
+
   FEATURE_ORDER.forEach((name, index) => {
     const rawValue = features?.[name];
-    data[index] = Number.isFinite(rawValue) ? rawValue : 0;
+    if (Number.isFinite(rawValue)) {
+      baseVector[index] = rawValue;
+      return;
+    }
+
+    const meanFallback = FEATURE_MEAN[index];
+    baseVector[index] = Number.isFinite(meanFallback) ? meanFallback : 0;
   });
 
-  return new Tensor('float32', data, [1, data.length]);
+  const standardized = standardizeFeatureVector(baseVector);
+  return new Tensor('float32', standardized, [1, standardized.length]);
 }
 
 function getFirstValue(mapLike) {
