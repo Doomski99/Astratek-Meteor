@@ -468,6 +468,26 @@ function renderImpactorEffects(bands) {
 
   impactorEffectsList.innerHTML = '';
 
+  const formatRadiusFallback = value => {
+    if (!Number.isFinite(value) || value <= 0) {
+      return null;
+    }
+
+    if (value >= 1000) {
+      return `${value.toLocaleString(undefined, { maximumFractionDigits: 0 })} km`;
+    }
+    if (value >= 100) {
+      return `${value.toLocaleString(undefined, { maximumFractionDigits: 1 })} km`;
+    }
+    if (value >= 10) {
+      return `${value.toLocaleString(undefined, { maximumFractionDigits: 1 })} km`;
+    }
+    if (value >= 1) {
+      return `${value.toLocaleString(undefined, { maximumFractionDigits: 2 })} km`;
+    }
+    return `${value.toLocaleString(undefined, { maximumFractionDigits: 3 })} km`;
+  };
+
   bands.forEach(band => {
     if (!band || !Number.isFinite(band.radiusKm)) {
       return;
@@ -505,25 +525,34 @@ function renderImpactorEffects(bands) {
 
     const value = document.createElement('span');
     value.className = 'impactor-effects__value';
-    if (band.categoryName && band.categoryRangeLabel) {
-      value.textContent = `${band.categoryName} • ${band.categoryRangeLabel}`;
-    } else if (band.categoryName) {
-      value.textContent = band.categoryName;
-    } else if (band.categoryRangeLabel) {
-      value.textContent = band.categoryRangeLabel;
-    } else {
-      value.textContent = '—';
+    const radiusText = band.radiusLabel || formatRadiusFallback(band.radiusKm);
+    value.textContent = radiusText || '—';
+
+    const tooltipParts = [];
+    if (band.categoryName) {
+      tooltipParts.push(band.categoryName);
+    }
+    if (band.categoryRangeLabel) {
+      tooltipParts.push(band.categoryRangeLabel);
+    }
+    if (band.categoryDescription) {
+      tooltipParts.push(band.categoryDescription);
     }
 
-    if (band.categoryDescription) {
-      value.dataset.tooltip = band.categoryDescription;
+    if (tooltipParts.length > 0) {
+      const tooltipText = tooltipParts.join(' • ');
+      value.dataset.tooltip = tooltipText;
       value.classList.add('impactor-effects__value--has-tooltip');
       value.setAttribute('tabindex', '0');
       value.setAttribute('role', 'note');
-      value.setAttribute(
-        'aria-label',
-        `${band.categoryName ?? 'Impact category'} — ${band.categoryDescription}`
-      );
+      value.setAttribute('aria-label', `${band.label ?? 'Effect'} — ${tooltipText}`);
+    } else {
+      value.title = '';
+      delete value.dataset.tooltip;
+      value.classList.remove('impactor-effects__value--has-tooltip');
+      value.removeAttribute('tabindex');
+      value.removeAttribute('role');
+      value.removeAttribute('aria-label');
     }
 
     item.appendChild(swatch);

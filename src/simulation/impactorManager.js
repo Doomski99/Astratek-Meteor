@@ -249,48 +249,192 @@ function estimateImpactEpochFrame({
   };
 }
 
-const BASE_EFFECT_BANDS = [
-  {
-    id: 'fireball',
-    defaultLabel: 'Fireball (Total Destruction)',
+const MAX_SURFACE_DISTANCE_KM = EARTH_RADIUS_KILOMETERS * Math.PI;
+const HEMISPHERE_SURFACE_DISTANCE_KM = EARTH_RADIUS_KILOMETERS * Math.PI * 0.5;
+
+const EFFECT_ZONE_STYLES = {
+  'blast-100': {
     fillColor: 0xff5722,
     outlineColor: 0xffab91,
-    opacity: 0.5,
+    opacity: 0.55,
     featherDegrees: 3,
-    defaultSeverity: 'critical',
-    radiusCalculator: ({ yieldExponentFourTenths }) => 0.9 * yieldExponentFourTenths
+    defaultSeverity: 'critical'
   },
-  {
-    id: 'severe-blast',
-    defaultLabel: 'Severe Blast Damage',
+  'blast-35': {
     fillColor: 0xff7043,
     outlineColor: 0xffccbc,
-    opacity: 0.38,
+    opacity: 0.45,
     featherDegrees: 4,
-    defaultSeverity: 'high',
-    radiusCalculator: ({ yieldCubeRoot }) => 2.4 * yieldCubeRoot
+    defaultSeverity: 'critical'
   },
-  {
-    id: 'moderate-blast',
-    defaultLabel: 'Moderate Blast Damage',
+  'blast-10': {
     fillColor: 0xff9800,
     outlineColor: 0xffe0b2,
-    opacity: 0.3,
+    opacity: 0.35,
     featherDegrees: 5,
-    defaultSeverity: 'elevated',
-    radiusCalculator: ({ yieldCubeRoot }) => 4.1 * yieldCubeRoot
+    defaultSeverity: 'high'
   },
-  {
-    id: 'thermal',
-    defaultLabel: 'Thermal Radiation',
-    fillColor: 0xffe082,
-    outlineColor: 0xfff3e0,
-    opacity: 0.22,
+  'thermal-100': {
+    fillColor: 0xffb74d,
+    outlineColor: 0xffecb3,
+    opacity: 0.32,
+    featherDegrees: 4,
+    defaultSeverity: 'high'
+  },
+  'thermal-20': {
+    fillColor: 0xffd180,
+    outlineColor: 0xfff0c2,
+    opacity: 0.28,
+    featherDegrees: 5,
+    defaultSeverity: 'area'
+  },
+  'thermal-2': {
+    fillColor: 0xffe0b2,
+    outlineColor: 0xfff7e1,
+    opacity: 0.24,
     featherDegrees: 6,
-    defaultSeverity: 'area',
-    radiusCalculator: ({ yieldExponentFourTenths }) => 7.2 * yieldExponentFourTenths
+    defaultSeverity: 'area'
+  },
+  'crater-final': {
+    fillColor: 0x9e9e9e,
+    outlineColor: 0xe0e0e0,
+    opacity: 0.5,
+    featherDegrees: 2,
+    defaultSeverity: 'critical'
+  },
+  'seismic-mmi': {
+    fillColor: 0x7e57c2,
+    outlineColor: 0xd1c4e9,
+    opacity: 0.26,
+    featherDegrees: 6,
+    defaultSeverity: 'high'
+  },
+  'tsunami-near': {
+    fillColor: 0x2196f3,
+    outlineColor: 0xbbdefb,
+    opacity: 0.24,
+    featherDegrees: 5,
+    defaultSeverity: 'critical'
   }
-];
+};
+
+const DEFAULT_EFFECT_ZONE_STYLE = {
+  fillColor: 0xffffff,
+  outlineColor: 0xffffff,
+  opacity: 0.2,
+  featherDegrees: 5,
+  defaultSeverity: 'high'
+};
+
+function clampRadiusKm(radiusKm) {
+  if (!Number.isFinite(radiusKm) || radiusKm <= 0) {
+    return 0;
+  }
+
+  return Math.min(radiusKm, MAX_SURFACE_DISTANCE_KM);
+}
+
+function deriveRepresentativeRadiusKm(range) {
+  if (!range || typeof range !== 'object') {
+    return 0;
+  }
+
+  const qualifier = range.qualifier;
+  if (qualifier === 'global' || qualifier === 'planetary') {
+    return MAX_SURFACE_DISTANCE_KM;
+  }
+  if (qualifier === 'hemisphere') {
+    return HEMISPHERE_SURFACE_DISTANCE_KM;
+  }
+  if (qualifier === 'atLeast') {
+    if (Number.isFinite(range.min)) {
+      return range.min;
+    }
+    if (Number.isFinite(range.max)) {
+      return range.max;
+    }
+    return 0;
+  }
+
+  const { min, max } = range;
+  if (Number.isFinite(min) && Number.isFinite(max)) {
+    return (min + max) / 2;
+  }
+  if (Number.isFinite(max)) {
+    return max;
+  }
+  if (Number.isFinite(min)) {
+    return min;
+  }
+  return 0;
+}
+
+function formatKilometers(value) {
+  if (!Number.isFinite(value)) {
+    return '';
+  }
+
+  if (value >= 1000) {
+    return value.toLocaleString(undefined, { maximumFractionDigits: 0 });
+  }
+  if (value >= 100) {
+    return value.toLocaleString(undefined, { maximumFractionDigits: 1 });
+  }
+  if (value >= 10) {
+    return value.toLocaleString(undefined, { maximumFractionDigits: 1 });
+  }
+  if (value >= 1) {
+    return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  }
+  return value.toLocaleString(undefined, { maximumFractionDigits: 3 });
+}
+
+function formatRadiusLabel(range, fallbackRadiusKm) {
+  if (!range || typeof range !== 'object') {
+    if (Number.isFinite(fallbackRadiusKm) && fallbackRadiusKm > 0) {
+      return `${formatKilometers(fallbackRadiusKm)} km`;
+    }
+    return null;
+  }
+
+  const qualifier = range.qualifier;
+  if (qualifier === 'global') {
+    return 'Global';
+  }
+  if (qualifier === 'planetary') {
+    return 'Planetary-scale';
+  }
+  if (qualifier === 'hemisphere') {
+    return 'Hemispheric (~10,000 km)';
+  }
+  if (qualifier === 'atLeast') {
+    if (Number.isFinite(range.min)) {
+      return `≥${formatKilometers(range.min)} km`;
+    }
+    if (Number.isFinite(range.max)) {
+      return `≥${formatKilometers(range.max)} km`;
+    }
+    return '≥Global';
+  }
+
+  const { min, max } = range;
+  if (Number.isFinite(min) && Number.isFinite(max)) {
+    if (min === max) {
+      return `${formatKilometers(min)} km`;
+    }
+    return `${formatKilometers(min)}–${formatKilometers(max)} km`;
+  }
+  if (Number.isFinite(max)) {
+    return `${formatKilometers(max)} km`;
+  }
+  if (Number.isFinite(min)) {
+    return `${formatKilometers(min)} km`;
+  }
+  if (Number.isFinite(fallbackRadiusKm) && fallbackRadiusKm > 0) {
+    return `${formatKilometers(fallbackRadiusKm)} km`;
+  }
+  return null;
+}
 
 function wrapAngle(angle) {
   if (!Number.isFinite(angle)) {
@@ -359,37 +503,49 @@ function computeYieldMegatons(
 }
 
 function computeEffectBands(yieldMegatons) {
-  const safeYield = Math.max(yieldMegatons, 0.001);
-  const yieldCubeRoot = Math.cbrt(safeYield);
-  const yieldExponentFourTenths = Math.pow(safeYield, 0.4);
+  const safeYield = Math.max(Number.isFinite(yieldMegatons) ? yieldMegatons : 0, 0);
   const category = getImpactYieldCategory(safeYield);
+  const effectZones = Array.isArray(category?.effectZones) ? category.effectZones : [];
 
-  const bands = BASE_EFFECT_BANDS.map(base => {
-    const radiusKm = base.radiusCalculator({ yieldCubeRoot, yieldExponentFourTenths, safeYield });
-    const categoryEffect = category?.effects?.[base.id] ?? null;
-    const label = categoryEffect?.title ?? base.defaultLabel;
-    const severity = categoryEffect?.severity ?? base.defaultSeverity;
-    const description = categoryEffect?.description ?? '';
+  const bands = effectZones
+    .map(zone => {
+      const style = EFFECT_ZONE_STYLES[zone.id] ?? DEFAULT_EFFECT_ZONE_STYLE;
+      const radiusEstimateKm = clampRadiusKm(deriveRepresentativeRadiusKm(zone.radius));
+      if (!Number.isFinite(radiusEstimateKm) || radiusEstimateKm <= 0) {
+        return null;
+      }
 
-    const angularRadiusRad = Math.min((radiusKm / EARTH_RADIUS_KILOMETERS) || 0, Math.PI);
-    return {
-      id: base.id,
-      label,
-      severity,
-      description,
-      radiusKm,
-      fillColor: base.fillColor,
-      outlineColor: base.outlineColor,
-      opacity: base.opacity,
-      featherDegrees: base.featherDegrees,
-      color: base.fillColor,
-      angularRadiusRad,
-      categoryId: category?.id,
-      categoryName: category?.name,
-      categoryRangeLabel: category?.rangeLabel,
-      categoryDescription: category?.description
-    };
-  }).filter(band => band.radiusKm > 0.01 && band.angularRadiusRad > 0);
+      const angularRadiusRad = Math.min((radiusEstimateKm / EARTH_RADIUS_KILOMETERS) || 0, Math.PI);
+      if (angularRadiusRad <= 0) {
+        return null;
+      }
+
+      const radiusLabel = zone.radiusLabel ?? formatRadiusLabel(zone.radius, radiusEstimateKm);
+
+      return {
+        id: zone.id,
+        label: zone.label,
+        severity: zone.severity ?? style.defaultSeverity,
+        description: zone.description ?? '',
+        radiusKm: radiusEstimateKm,
+        radiusMinKm: Number.isFinite(zone.radius?.min) ? zone.radius.min : null,
+        radiusMaxKm: Number.isFinite(zone.radius?.max) ? zone.radius.max : null,
+        radiusQualifier: zone.radius?.qualifier ?? null,
+        radiusLabel,
+        fillColor: zone.fillColor ?? style.fillColor,
+        outlineColor: zone.outlineColor ?? style.outlineColor,
+        opacity: zone.opacity ?? style.opacity,
+        featherDegrees: zone.featherDegrees ?? style.featherDegrees,
+        featherRadians: zone.featherRadians ?? style.featherRadians,
+        color: zone.fillColor ?? style.fillColor,
+        angularRadiusRad,
+        categoryId: category?.id,
+        categoryName: category?.name,
+        categoryRangeLabel: category?.rangeLabel,
+        categoryDescription: category?.description
+      };
+    })
+    .filter(Boolean);
 
   return { category, bands };
 }

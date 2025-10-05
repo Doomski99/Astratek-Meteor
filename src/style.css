@@ -160,16 +160,32 @@ p {
     box-shadow: 0 0 6px rgba(255, 255, 255, 0.35);
 }
 
-.impact-legend__swatch--low {
-    background: #58d68d;
+.impact-legend__swatch--range-a {
+    background: #4fc3f7;
 }
 
-.impact-legend__swatch--medium {
-    background: #f4d03f;
+.impact-legend__swatch--range-b {
+    background: #66bb6a;
 }
 
-.impact-legend__swatch--high {
-    background: #e74c3c;
+.impact-legend__swatch--range-c {
+    background: #fdd835;
+}
+
+.impact-legend__swatch--range-d {
+    background: #fb8c00;
+}
+
+.impact-legend__swatch--range-e1 {
+    background: #f4511e;
+}
+
+.impact-legend__swatch--range-e2 {
+    background: #8e24aa;
+}
+
+.impact-legend__swatch--range-e3 {
+    background: #3949ab;
 }
 
 .asteroid-info {
