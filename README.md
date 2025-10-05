@@ -22,6 +22,7 @@ Monitor asteroids and evaluate its impact. Astratek Meteor is an interactive Web
 ## Getting Started
 1. **Install dependencies**
    ```bash
+   pip install numpy onnxruntime
    npm install
    ```
 2. **Start the development server**
