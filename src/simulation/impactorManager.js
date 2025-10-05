@@ -11,13 +11,14 @@ import {
   disposeObject
 } from './asteroids.js';
 import { propagateKepler } from './kepler.js';
-import { orbitPositionToScene, estimateOrbitalVelocity } from './orbitUtils.js';
+import { orbitPositionToScene, estimateOrbitalVelocity, sampleKeplerOrbit } from './orbitUtils.js';
 import { getImpactYieldCategory } from '../data/impactYieldCategories.js';
 
 const MEGATON_JOULES = 4.184e15;
 const EARTH_RADIUS_KILOMETERS = 6371;
 const EARTH_RADIUS_SCENE_KILOMETERS = EARTH_RADIUS_SCENE_UNITS * KILOMETERS_PER_SCENE_UNIT;
-const DEFAULT_LEAD_TIME_SECONDS = 7 * 24 * 60 * 60;
+const DEFAULT_LEAD_TIME_SECONDS = 14 * 24 * 60 * 60;
+const MIN_FRAMES_UNTIL_IMPACT = 600;
 const SOLAR_MU_KM3_PER_S2 = 1.32712440018e11;
 const EARTH_MU_KM3_PER_S2 = 398600.4418;
 const SEA_LEVEL_AIR_DENSITY_KG_PER_M3 = 1.225;
@@ -709,7 +710,7 @@ function buildImpactorState({
   const leadTime = Math.max(Number.isFinite(leadTimeSeconds) ? leadTimeSeconds : 0, 0);
   let framesUntilImpact = Math.max(
     Math.round((leadTime || DEFAULT_LEAD_TIME_SECONDS) / SECONDS_PER_FRAME),
-    300
+    MIN_FRAMES_UNTIL_IMPACT
   );
   const currentFrame = currentOrbitFrame ?? 0;
   let impactEpochFrame = currentFrame + framesUntilImpact;
@@ -885,15 +886,10 @@ function buildImpactorState({
   scene.add(mesh);
 
   let trajectoryLine = null;
-  const trajectoryPoints = [];
-  const sampleCount = 256;
-  for (let index = 0; index <= sampleCount; index += 1) {
-    const progress = index / sampleCount;
-    const sampleFrame = currentFrame + progress * (impactEpochFrame - currentFrame);
-    const { position: samplePosition } = propagateKepler(keplerElements, sampleFrame);
-    const scenePoint = orbitPositionToScene(samplePosition, new THREE.Vector3());
-    trajectoryPoints.push(scenePoint.clone());
-  }
+  const trajectorySegments = 512;
+  const trajectoryPoints = sampleKeplerOrbit(keplerElements, trajectorySegments).map(point =>
+    point.clone()
+  );
 
   if (trajectoryPoints.length >= 2) {
     trajectoryLine = createTrajectoryLine(trajectoryPoints);
