@@ -37,6 +37,8 @@ Monitor asteroids and evaluate its impact. Astratek Meteor is an interactive Web
 
 > **Note:** The asteroid catalogue is loaded from `static/data/asteroids.csv`. When hosting the production build, ensure the `static` directory is served alongside the compiled assets so the dataset, textures, and ONNX classification assets remain accessible.
 
+> **Note 2:** In case of error, try to rest the app by closing and re-running "npm run dev".
+
 ## Verifying the ONNX classifier
 
 The `scripts/verify_model.py` helper runs the bundled ONNX model against the CSV catalogue so you can double-check the generated NEO/PHA probabilities outside the browser:
