@@ -13,6 +13,13 @@
     <aside id="asteroidListPanel" class="asteroid-panel">
         <header class="asteroid-panel__header">Tracked Asteroids</header>
         <ul id="asteroidList" class="asteroid-panel__list"></ul>
+        <div class="asteroid-panel__actions">
+            <button id="generateAsteroidButton" class="asteroid-panel__button" type="button">
+                Generate Demo Asteroid
+            </button>
+            <p class="asteroid-panel__hint">Creates a synthetic asteroid and classifies it using the ONNX model.</p>
+            <p class="asteroid-panel__status" data-asteroid-generator-status hidden></p>
+        </div>
     </aside>
     <aside id="viewTargetPanel" class="view-panel">
         <header class="view-panel__header">View Targets</header>
