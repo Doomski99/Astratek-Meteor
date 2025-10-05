@@ -46,6 +46,8 @@ python scripts/verify_model.py --limit 5
 
 The script standardises each asteroid with the same scaler parameters baked into the web client before running inference. Adjust `--sort` to `pha_probability` or tweak `--threshold` to inspect different slices of the output.
 
+In the browser, ONNX executions are serialised through a lightweight promise queue so the WebAssembly backend never runs overlapping sessions. This avoids the "Session already started" errors that appear when multiple `session.run(...)` calls overlap on slower devices while still allowing the UI to classify every asteroid deterministically.
+
 ## Project Documentation
 A detailed breakdown of the codebase structure, key modules, and data flow lives in [`docs/PROJECT_STRUCTURE.md`](docs/PROJECT_STRUCTURE.md).
 

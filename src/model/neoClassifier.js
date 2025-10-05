@@ -7,6 +7,13 @@ const ORT_WEB_VERSION = '1.23.0'; // keep in sync with package.json
 env.wasm.wasmPaths = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_WEB_VERSION}/dist/`;
 
 let sessionPromise = null;
+let inferenceQueue = Promise.resolve();
+
+function enqueueInference(operation) {
+  const next = inferenceQueue.then(operation, operation);
+  inferenceQueue = next.catch(() => {});
+  return next;
+}
 
 async function getSession() {
   if (!sessionPromise) {
@@ -62,27 +69,29 @@ function getFirstValue(mapLike) {
 }
 
 async function classifyAsteroid(features) {
-  const session = await getSession();
-  const inputName = session.inputNames?.[0];
-  if (!inputName) {
-    throw new Error('ONNX model input name could not be resolved.');
-  }
+  return enqueueInference(async () => {
+    const session = await getSession();
+    const inputName = session.inputNames?.[0];
+    if (!inputName) {
+      throw new Error('ONNX model input name could not be resolved.');
+    }
 
-  const feeds = { [inputName]: createInput(features) };
+    const feeds = { [inputName]: createInput(features) };
 
-  const results = await session.run(feeds);
-  const output = getFirstValue(results);
-  const data = Array.from(output?.data ?? []);
+    const results = await session.run(feeds);
+    const output = getFirstValue(results);
+    const data = Array.from(output?.data ?? []);
 
-  const neoProbability = data.length > 0 ? sigmoid(data[0]) : 0;
-  const phaProbability = data.length > 1 ? sigmoid(data[1]) : 0;
+    const neoProbability = data.length > 0 ? sigmoid(data[0]) : 0;
+    const phaProbability = data.length > 1 ? sigmoid(data[1]) : 0;
 
-  return {
-    neoProbability,
-    phaProbability,
-    isNeo: neoProbability > 0.5,
-    isPhaHazardous: phaProbability > 0.5
-  };
+    return {
+      neoProbability,
+      phaProbability,
+      isNeo: neoProbability > 0.5,
+      isPhaHazardous: phaProbability > 0.5
+    };
+  });
 }
 
 export { classifyAsteroid, FEATURE_ORDER };
