@@ -23,8 +23,14 @@ This document describes how the Astratek Meteor codebase is organised and how th
 - `time.js` – Implements a composable simulation clock with pause/resume, looping, adjustable duration, playback speed, and derived “channels” that advance at different rates.
 
 ### `src/data/`
-- `bodies.js` – Parses CSV orbit data, constructs `planetData`, generates Kepler elements, instantiates planets/moons, and exposes helpers for asteroid mesh creation and trajectory sampling.
+- `bodies.js` – Parses CSV orbit data, constructs `planetData`, generates Kepler elements, instantiates planets/moons, and exposes helpers for asteroid mesh creation and trajectory sampling. It also feeds asteroid telemetry through the ONNX classifier so each catalogue entry ships with predicted NEO/PHA labels and probabilities.
 - `impactYieldCategories.js` – Defines descriptive yield bands, labels, and severity metadata used by the impact analysis overlay and summary panel.
+
+### `src/model/`
+- `neoClassifier.js` – Wraps `onnxruntime-web`, applies the StandardScaler statistics, serialises inference through a promise queue, and exposes helpers that return booleans and probabilities for the UI badges without overlapping sessions.
+- `featureSchema.js` – Stores the ordered feature list plus the scaler mean/scale arrays used to standardise asteroid telemetry before inference.
+- `scaler.json` – JSON payload containing the scaler parameters shared by the browser runtime and offline verification script.
+- `astratek_model.onnx` – Bundled ONNX model that scores Near-Earth Object and Potentially Hazardous Asteroid probabilities.
 
 ### `src/simulation/`
 - `kepler.js` – Contains orbital propagation utilities built on Keplerian elements, including conversions between anomalies and scene coordinates.
@@ -41,16 +47,20 @@ This document describes how the Astratek Meteor codebase is organised and how th
 - `impactTimeWidget.js` – Displays countdowns and status indicators related to predicted impacts.
 
 ### `static/`
-- `data/asteroids.csv` – Source catalogue of asteroid orbital elements consumed by `bodies.js` at runtime.
+- `data/asteroids.csv` – Source catalogue of asteroid orbital and physical parameters (diameter, sigmas, MOID, etc.) consumed by `bodies.js` at runtime and supplied to the ONNX classifier.
 - Additional static textures (e.g., `door.jpg`) that Vite serves directly without bundling.
 
 ### `docs/`
 - `PROJECT_STRUCTURE.md` (this document) – High-level documentation for the repository.
 
+### `scripts/`
+- `verify_model.py` – Utility to execute the ONNX classifier against the CSV catalogue from the command line for debugging or regression checks.
+
 ## Data & Asset Dependencies
 - All runtime imagery lives under `src/images/` and is imported directly in `main.js`, allowing Vite to bundle them.
 - Asteroid GLTF assets (`src/asteroids/asteroidPack.glb`) are lazily loaded by the asteroid mesh manager and instanced within the scene.
 - The asteroid CSV catalogue (`static/data/asteroids.csv`) must be hosted alongside the production build; without it, no asteroid entries will load.
+- The ONNX classifier (`src/model/astratek_model.onnx`) is loaded in the browser via `onnxruntime-web`, which fetches its WebAssembly backend from jsDelivr during catalog initialisation.
 
 ## Extending the Simulation
 - To add new UI panels, define the markup in `src/index.html` and pair it with a controller module under `src/ui/` that listens to simulation clock or data events.

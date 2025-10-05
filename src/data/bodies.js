@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { createKeplerElements, propagateKepler } from '../simulation/kepler.js';
 import { orbitPositionToScene, sampleKeplerOrbit } from '../simulation/orbitUtils.js';
+import { classifyAsteroid } from '../model/neoClassifier.js';
 import { AU_TO_SCENE_UNITS, FRAMES_PER_SIMULATION_DAY } from '../simulation/scales.js';
 
 const DEG_TO_RAD = Math.PI / 180;
@@ -97,13 +98,24 @@ function transformAsteroidRow(row, rowIndex) {
   const [
     idValue,
     nameValue,
+    diameterValue,
     eccentricityValue,
     semiMajorAxisValue,
     inclinationValue,
     ascendingNodeValue,
     argumentValue,
     meanAnomalyValue,
-    meanMotionValue
+    meanMotionValue,
+    sigmaEValue,
+    sigmaAValue,
+    sigmaIValue,
+    sigmaOmValue,
+    sigmaWValue,
+    sigmaMaValue,
+    sigmaNValue,
+    absoluteMagnitudeValue,
+    absoluteMagnitudeSigmaValue,
+    moidValue
   ] = row;
 
   const id = (idValue ?? '').toString().trim();
@@ -112,13 +124,25 @@ function transformAsteroidRow(row, rowIndex) {
     return null;
   }
 
+  const name = (nameValue ?? '').toString().trim() || id;
   const semiMajorAxisAu = parseNumber(semiMajorAxisValue);
+  const diameter = parseNumber(diameterValue);
   const eccentricity = parseNumber(eccentricityValue);
   const inclination = parseNumber(inclinationValue);
   const ascendingNode = parseNumber(ascendingNodeValue);
   const argumentOfPeriapsis = parseNumber(argumentValue);
   const meanAnomalyAtEpoch = parseNumber(meanAnomalyValue);
   const meanMotionDegPerDay = parseNumber(meanMotionValue);
+  const sigmaEccentricity = parseNumber(sigmaEValue);
+  const sigmaSemiMajorAxis = parseNumber(sigmaAValue);
+  const sigmaInclination = parseNumber(sigmaIValue);
+  const sigmaLongitudeAscendingNode = parseNumber(sigmaOmValue);
+  const sigmaArgumentOfPeriapsis = parseNumber(sigmaWValue);
+  const sigmaMeanAnomaly = parseNumber(sigmaMaValue);
+  const sigmaMeanMotion = parseNumber(sigmaNValue);
+  const absoluteMagnitude = parseNumber(absoluteMagnitudeValue);
+  const absoluteMagnitudeSigma = parseNumber(absoluteMagnitudeSigmaValue);
+  const minimumOrbitIntersectionDistance = parseNumber(moidValue);
 
   if (
     !Number.isFinite(semiMajorAxisAu) ||
@@ -143,12 +167,43 @@ function transformAsteroidRow(row, rowIndex) {
     meanMotion: convertMeanMotion(meanMotionDegPerDay ?? 0)
   };
 
+  const classificationFeatures = {
+    diameter: Number.isFinite(diameter) ? diameter : 0,
+    diameter_sigma:
+      Number.isFinite(diameter) && diameter > 0 ? Math.max(diameter * 0.05, 0.01) : 0,
+    e: eccentricity,
+    a: semiMajorAxisAu,
+    i: inclination,
+    om: ascendingNode,
+    w: argumentOfPeriapsis,
+    ma: meanAnomalyAtEpoch,
+    n: Number.isFinite(meanMotionDegPerDay) ? meanMotionDegPerDay : 0,
+    sigma_e: Number.isFinite(sigmaEccentricity) ? sigmaEccentricity : 0,
+    sigma_a: Number.isFinite(sigmaSemiMajorAxis) ? sigmaSemiMajorAxis : 0,
+    sigma_i: Number.isFinite(sigmaInclination) ? sigmaInclination : 0,
+    sigma_om: Number.isFinite(sigmaLongitudeAscendingNode) ? sigmaLongitudeAscendingNode : 0,
+    sigma_w: Number.isFinite(sigmaArgumentOfPeriapsis) ? sigmaArgumentOfPeriapsis : 0,
+    sigma_ma: Number.isFinite(sigmaMeanAnomaly) ? sigmaMeanAnomaly : 0,
+    sigma_n: Number.isFinite(sigmaMeanMotion) ? sigmaMeanMotion : 0,
+    H: Number.isFinite(absoluteMagnitude) ? absoluteMagnitude : 0,
+    H_sigma: Number.isFinite(absoluteMagnitudeSigma) ? absoluteMagnitudeSigma : 0,
+    moid: Number.isFinite(minimumOrbitIntersectionDistance)
+      ? minimumOrbitIntersectionDistance
+      : 0
+  };
+
   return {
     id,
-    name: (nameValue ?? '').toString().trim() || id,
+    name,
     tntYieldMt: DEFAULT_TNT_YIELD_MT,
     visualScale: DEFAULT_VISUAL_SCALE,
-    orbit
+    orbit,
+    diameter: Number.isFinite(diameter) ? diameter : null,
+    absoluteMagnitude: Number.isFinite(absoluteMagnitude) ? absoluteMagnitude : null,
+    moid: Number.isFinite(minimumOrbitIntersectionDistance)
+      ? minimumOrbitIntersectionDistance
+      : null,
+    classificationFeatures
   };
 }
 
@@ -165,7 +220,7 @@ async function loadAsteroidCatalog(url = '/data/asteroids.csv') {
 
     rows.forEach((row, index) => {
       const headerCandidate = row[0]?.trim().toLowerCase();
-      if (index === 0 && (headerCandidate === 'id' || headerCandidate === '#')) {
+      if (index === 0 && (headerCandidate === 'id' || headerCandidate === '#' || headerCandidate === 'spkid')) {
         return;
       }
 
@@ -175,7 +230,32 @@ async function loadAsteroidCatalog(url = '/data/asteroids.csv') {
       }
     });
 
-    return asteroids;
+    const classified = await Promise.all(
+      asteroids.map(async asteroid => {
+        if (!asteroid?.classificationFeatures) {
+          return asteroid;
+        }
+
+        try {
+          const classification = await classifyAsteroid(asteroid.classificationFeatures);
+          return {
+            ...asteroid,
+            isNeo: classification.isNeo,
+            neoProbability: classification.neoProbability,
+            isPhaHazardous: classification.isPhaHazardous,
+            phaProbability: classification.phaProbability
+          };
+        } catch (error) {
+          console.error(`Failed to classify asteroid ${asteroid.id}:`, error);
+          return asteroid;
+        }
+      })
+    );
+
+    return classified.map(asteroid => {
+      const { classificationFeatures, ...rest } = asteroid;
+      return rest;
+    });
   } catch (error) {
     console.error('Unable to load asteroid catalog:', error);
     return [];

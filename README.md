@@ -8,6 +8,7 @@ Monitor asteroids and evaluate its impact. Astratek Meteor is an interactive Web
 - **Immersive solar system renderer** – A custom Three.js scene configures orbit controls, bloom, and outline passes to frame planets, moons, and lighting within a responsive renderer.
 - **Orbital-mechanics driven animation** – A reusable simulation clock advances per-body spin and orbit channels while keeping time controls in sync with the UI.
 - **Asteroid catalogue & telemetry** – Hundreds of asteroid entries are parsed from CSV data, converted into Keplerian elements, and updated in real time, complete with velocity readouts and camera targets.
+- **ONNX-powered risk classification** – Each tracked asteroid is automatically standardised and scored as a Near-Earth Object (NEO) and Potentially Hazardous Asteroid (PHA) using the bundled ONNX model, keeping the UI badges in sync with model predictions.
 - **Custom impact analysis** – Users can launch bespoke impactors, view yield categories, and inspect the predicted blast zones and effect descriptions through dedicated panels and overlays.
 - **UI panels for exploration** – Track asteroids, switch view targets, and inspect impact telemetry with modular UI controllers that wire DOM interactions to simulation state.
 
@@ -32,7 +33,20 @@ Monitor asteroids and evaluate its impact. Astratek Meteor is an interactive Web
    npm run build
    ```
 
-> **Note:** The asteroid catalogue is loaded from `static/data/asteroids.csv`. When hosting the production build, ensure the `static` directory is served alongside the compiled assets so the dataset and textures remain accessible.
+> **Note:** The asteroid catalogue is loaded from `static/data/asteroids.csv`. When hosting the production build, ensure the `static` directory is served alongside the compiled assets so the dataset, textures, and ONNX classification assets remain accessible.
+
+## Verifying the ONNX classifier
+
+The `scripts/verify_model.py` helper runs the bundled ONNX model against the CSV catalogue so you can double-check the generated NEO/PHA probabilities outside the browser:
+
+```bash
+pip install onnxruntime numpy
+python scripts/verify_model.py --limit 5
+```
+
+The script standardises each asteroid with the same scaler parameters baked into the web client before running inference. Adjust `--sort` to `pha_probability` or tweak `--threshold` to inspect different slices of the output.
+
+In the browser, ONNX executions are serialised through a lightweight promise queue so the WebAssembly backend never runs overlapping sessions. This avoids the "Session already started" errors that appear when multiple `session.run(...)` calls overlap on slower devices while still allowing the UI to classify every asteroid deterministically.
 
 ## Project Documentation
 A detailed breakdown of the codebase structure, key modules, and data flow lives in [`docs/PROJECT_STRUCTURE.md`](docs/PROJECT_STRUCTURE.md).
