@@ -690,8 +690,8 @@ function buildImpactorState({
   const radiusMeters = Math.max(Number.isFinite(diameterMeters) ? diameterMeters / 2 : 0, 0);
   const crossSectionAreaM2 = Math.PI * radiusMeters * radiusMeters;
 
-  const latitude = THREE.MathUtils.randFloatSpread(180);
-  const longitude = THREE.MathUtils.randFloatSpread(360);
+  let latitude = THREE.MathUtils.randFloatSpread(180);
+  let longitude = THREE.MathUtils.randFloatSpread(360);
   const latRad = THREE.MathUtils.degToRad(latitude);
   const lonRad = THREE.MathUtils.degToRad(longitude);
 
@@ -699,7 +699,7 @@ function buildImpactorState({
     earthMesh.updateWorldMatrix(true, false);
   }
 
-  const impactNormalScene = new THREE.Vector3(
+  let impactNormalScene = new THREE.Vector3(
     Math.cos(latRad) * Math.cos(lonRad),
     Math.sin(latRad),
     Math.cos(latRad) * Math.sin(lonRad)
@@ -715,22 +715,26 @@ function buildImpactorState({
   const currentFrame = currentOrbitFrame ?? 0;
   let impactEpochFrame = currentFrame + framesUntilImpact;
 
-  const impactNormalSceneWorld = impactNormalScene.clone();
+  let earthRotationAtImpact = null;
   if (earthMesh) {
-    earthMesh.getWorldQuaternion(tempQuaternion);
+    earthRotationAtImpact = earthMesh.getWorldQuaternion(new THREE.Quaternion());
     const spinRate = Number.isFinite(earthMesh.userData?.spinRate)
       ? earthMesh.userData.spinRate
       : 0;
     const additionalSpin = spinRate * framesUntilImpact;
     if (Math.abs(additionalSpin) > 1e-6) {
       tempQuaternion2.setFromAxisAngle(yAxis, additionalSpin);
-      tempQuaternion.multiply(tempQuaternion2);
+      earthRotationAtImpact.multiply(tempQuaternion2);
     }
-    impactNormalSceneWorld.applyQuaternion(tempQuaternion);
+  }
+
+  let impactNormalSceneWorld = impactNormalScene.clone();
+  if (earthRotationAtImpact) {
+    impactNormalSceneWorld.applyQuaternion(earthRotationAtImpact);
   }
   impactNormalSceneWorld.normalize();
 
-  const impactNormalOrbit = sceneToOrbitVector(
+  let impactNormalOrbit = sceneToOrbitVector(
     impactNormalSceneWorld,
     tempOrbitVector
   ).normalize();
@@ -816,6 +820,52 @@ function buildImpactorState({
     .clone()
     .sub(earthVelocityKmPerSecond);
 
+  const impactSceneState = propagateKepler(keplerElements, impactEpochFrame);
+  const impactScenePosition = orbitPositionToScene(
+    impactSceneState.position,
+    new THREE.Vector3()
+  );
+
+  const candidateImpactNormalWorld = impactScenePosition
+    .clone()
+    .sub(earthScenePositionAtImpact)
+    .normalize();
+
+  if (candidateImpactNormalWorld.lengthSq() > 1e-8) {
+    const candidateImpactNormalScene = candidateImpactNormalWorld.clone();
+    if (earthRotationAtImpact) {
+      tempQuaternion.copy(earthRotationAtImpact).invert();
+      candidateImpactNormalScene.applyQuaternion(tempQuaternion);
+    }
+    candidateImpactNormalScene.normalize();
+
+    const clampedY = THREE.MathUtils.clamp(candidateImpactNormalScene.y, -1, 1);
+    const updatedLatRad = Math.asin(clampedY);
+    let updatedLonRad = Math.atan2(
+      candidateImpactNormalScene.z,
+      candidateImpactNormalScene.x
+    );
+
+    if (!Number.isFinite(updatedLonRad)) {
+      updatedLonRad = 0;
+    }
+
+    const updatedLatitude = THREE.MathUtils.radToDeg(updatedLatRad);
+    let updatedLongitude = THREE.MathUtils.radToDeg(updatedLonRad);
+    if (Number.isFinite(updatedLongitude)) {
+      updatedLongitude = THREE.MathUtils.euclideanModulo(updatedLongitude + 180, 360) - 180;
+    }
+
+    impactNormalScene = candidateImpactNormalScene;
+    impactNormalSceneWorld = candidateImpactNormalWorld;
+    impactNormalOrbit = sceneToOrbitVector(
+      impactNormalSceneWorld,
+      tempOrbitVector
+    ).normalize();
+    latitude = updatedLatitude;
+    longitude = Number.isFinite(updatedLongitude) ? updatedLongitude : 0;
+  }
+
   const entryAngleSin = computeEntryAngleSin(
     relativeVelocityAtImpactKmPerSecond,
     impactNormalOrbit
@@ -899,11 +949,6 @@ function buildImpactorState({
     trajectoryLine.userData.impactorTrajectory = true;
     scene.add(trajectoryLine);
   }
-
-  const impactScenePosition = orbitPositionToScene(
-    propagateKepler(keplerElements, impactEpochFrame).position,
-    new THREE.Vector3()
-  );
 
   const overlaySeedWorldPoint = impactNormalScene.clone().multiplyScalar(earthRadiusScene);
   if (earthMesh) {
